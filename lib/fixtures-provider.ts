@@ -178,26 +178,168 @@ function parseSportsDbKickoff(e: SportsDbEvent): Date | null {
   return null;
 }
 
+// --- ApiFootballProvider: api-sports.io (handoff §7) -----------------------------
+// CALL BUDGET: a single GET /fixtures?league&season returns the WHOLE league schedule
+// WITH each fixture's teams embedded (id, name, logo). We derive teams from that one
+// response instead of a second /teams call — so a full sync costs exactly 1 request.
+// With the 8h cron that's ~3 requests/day, well under the free tier's 100/day.
+// NOTE: the free plan only exposes seasons 2022–2024 (2025+/World-Cup-2026 need a paid
+// plan). Point API_FOOTBALL_SEASON at an accessible season, e.g. 2022 (WC Qatar, 64 games).
+
+function mapApiFootballStatus(short: string | undefined): FixtureStatus {
+  switch ((short ?? "").toUpperCase()) {
+    case "NS":
+    case "TBD":
+      return "SCHEDULED";
+    case "1H":
+    case "HT":
+    case "2H":
+    case "ET":
+    case "BT":
+    case "P":
+    case "LIVE":
+    case "INT":
+      return "LIVE";
+    case "FT":
+    case "AET":
+    case "PEN":
+      return "FINISHED";
+    case "PST":
+      return "POSTPONED";
+    case "CANC":
+    case "ABD":
+    case "AWD":
+    case "WO":
+      return "CANCELLED";
+    default:
+      return "SCHEDULED";
+  }
+}
+
+interface AfTeam {
+  id?: number;
+  name?: string;
+  logo?: string;
+}
+interface AfFixture {
+  fixture?: { id?: number; date?: string; status?: { short?: string } };
+  league?: { round?: string };
+  teams?: { home?: AfTeam; away?: AfTeam };
+}
+
+export class ApiFootballProvider implements FixturesProvider {
+  private key = process.env.API_FOOTBALL_KEY;
+  private leagueId = process.env.API_FOOTBALL_LEAGUE_ID || "1"; // 1 = FIFA World Cup
+  private season = process.env.API_FOOTBALL_SEASON;
+  private base = "https://v3.football.api-sports.io";
+
+  constructor() {
+    if (!this.key) throw new Error("ApiFootballProvider requires API_FOOTBALL_KEY");
+    if (!this.season) throw new Error("ApiFootballProvider requires API_FOOTBALL_SEASON");
+  }
+
+  // One network call, memoized, shared by fetchTeams + fetchFixtures (1 request/sync).
+  private fixturesPromise?: Promise<AfFixture[]>;
+  private loadFixtures(): Promise<AfFixture[]> {
+    if (!this.fixturesPromise) {
+      const url = `${this.base}/fixtures?league=${encodeURIComponent(
+        this.leagueId,
+      )}&season=${encodeURIComponent(this.season!)}`;
+      this.fixturesPromise = fetch(url, {
+        headers: { "x-apisports-key": this.key! },
+        cache: "no-store",
+      }).then(async (res) => {
+        if (!res.ok) {
+          throw new Error(`API-Football request failed: ${res.status} ${res.statusText}`);
+        }
+        const data = (await res.json()) as { response?: AfFixture[]; errors?: unknown };
+        // API-Football returns HTTP 200 with a populated `errors` field on plan/param issues.
+        const errs = data.errors;
+        const hasErrors = Array.isArray(errs)
+          ? errs.length > 0
+          : !!errs && typeof errs === "object" && Object.keys(errs).length > 0;
+        if (hasErrors) throw new Error(`API-Football error: ${JSON.stringify(errs)}`);
+        return data.response ?? [];
+      });
+    }
+    return this.fixturesPromise;
+  }
+
+  async fetchTeams(): Promise<ProviderTeam[]> {
+    const fixtures = await this.loadFixtures();
+    const byId = new Map<number, ProviderTeam>();
+    for (const f of fixtures) {
+      for (const t of [f.teams?.home, f.teams?.away]) {
+        if (t?.id) byId.set(t.id, { id: t.id, name: t.name ?? `Team ${t.id}`, logoUrl: t.logo ?? null });
+      }
+    }
+    return [...byId.values()];
+  }
+
+  async fetchFixtures(): Promise<ProviderFixture[]> {
+    const fixtures = await this.loadFixtures();
+    const out: ProviderFixture[] = [];
+    for (const f of fixtures) {
+      const id = f.fixture?.id;
+      const home = f.teams?.home?.id;
+      const away = f.teams?.away?.id;
+      if (!id || !home || !away || !f.fixture?.date) continue;
+      const kickoffAt = new Date(f.fixture.date);
+      if (isNaN(kickoffAt.getTime())) continue;
+      out.push({
+        id,
+        homeTeamId: home,
+        awayTeamId: away,
+        kickoffAt,
+        round: f.league?.round ?? "Fixture",
+        status: mapApiFootballStatus(f.fixture.status?.short),
+      });
+    }
+    return out;
+  }
+}
+
 // --- Selection + sync ------------------------------------------------------------
 
 export function getProvider(): FixturesProvider {
   const name = (process.env.FIXTURES_PROVIDER || "seed").toLowerCase();
   switch (name) {
+    case "apifootball":
+      return new ApiFootballProvider();
     case "thesportsdb":
       return new TheSportsDbProvider();
     case "seed":
       return new SeedProvider();
     default:
-      throw new Error(`Unknown FIXTURES_PROVIDER: "${name}" (expected "seed" or "thesportsdb")`);
+      throw new Error(
+        `Unknown FIXTURES_PROVIDER: "${name}" (expected "seed", "thesportsdb", or "apifootball")`,
+      );
   }
 }
+
+const SYNC_LAST_KEY = "last_sync_at";
 
 // Upsert teams then fixtures, idempotently, preserving admin-confirmed results:
 // once a fixture is FINISHED, sync must NOT clobber its score/status (handoff §7 —
 // scores are admin-authoritative, the sync feed is display-only). Returns counts.
+//
+// Quota guard: if SYNC_MIN_INTERVAL_MINUTES > 0 and the last sync was more recent than
+// that, skip the provider call entirely (protects metered providers like API-Football's
+// 100/day cap from rapid manual re-syncs). Pass { force: true } to override. Default 0 = off.
 export async function syncFixtures(
   provider: FixturesProvider = getProvider(),
-): Promise<{ teams: number; fixtures: number }> {
+  opts: { force?: boolean } = {},
+): Promise<{ teams: number; fixtures: number; skipped?: boolean }> {
+  const minMinutes = Number(process.env.SYNC_MIN_INTERVAL_MINUTES || 0);
+  if (!opts.force && minMinutes > 0) {
+    const last = await prisma.setting.findUnique({ where: { key: SYNC_LAST_KEY } });
+    const lastMs = last ? new Date(last.value).getTime() : NaN;
+    if (!isNaN(lastMs) && Date.now() - lastMs < minMinutes * 60_000) {
+      const [teams, fixtures] = await Promise.all([prisma.team.count(), prisma.fixture.count()]);
+      return { teams, fixtures, skipped: true };
+    }
+  }
+
   const [teams, fixtures] = await Promise.all([
     provider.fetchTeams(),
     provider.fetchFixtures(),
@@ -249,6 +391,14 @@ export async function syncFixtures(
     });
     fixtureCount++;
   }
+
+  // Record sync time for the quota-guard throttle above.
+  const now = new Date().toISOString();
+  await prisma.setting.upsert({
+    where: { key: SYNC_LAST_KEY },
+    update: { value: now },
+    create: { key: SYNC_LAST_KEY, value: now },
+  });
 
   return { teams: teams.length, fixtures: fixtureCount };
 }
