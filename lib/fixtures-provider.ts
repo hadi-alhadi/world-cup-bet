@@ -88,29 +88,49 @@ export class TheSportsDbProvider implements FixturesProvider {
     return (await res.json()) as T;
   }
 
+  // eventsseason returns the full season schedule in one call. We cache it because BOTH
+  // fetchTeams and fetchFixtures derive from it — see fetchTeams for why.
+  private eventsPromise?: Promise<SportsDbEvent[]>;
+  private loadEvents(): Promise<SportsDbEvent[]> {
+    if (!this.eventsPromise) {
+      this.eventsPromise = this.get<{ events: SportsDbEvent[] | null }>(
+        `eventsseason.php?id=${encodeURIComponent(this.leagueId!)}&s=${encodeURIComponent(
+          this.season!,
+        )}`,
+      ).then((d) => d.events ?? []);
+    }
+    return this.eventsPromise;
+  }
+
   async fetchTeams(): Promise<ProviderTeam[]> {
-    // lookup_all_teams returns every team in a league for the current season.
-    const data = await this.get<{ teams: SportsDbTeam[] | null }>(
-      `lookup_all_teams.php?id=${encodeURIComponent(this.leagueId!)}`,
-    );
-    const teams = data.teams ?? [];
-    return teams
-      .filter((t) => t.idTeam)
-      .map((t) => ({
-        id: Number(t.idTeam),
-        name: t.strTeam ?? `Team ${t.idTeam}`,
-        logoUrl: t.strTeamBadge ?? t.strTeamLogo ?? null,
-      }));
+    // IMPORTANT: TheSportsDB's lookup_all_teams.php is unreliable for the World Cup league
+    // (it returns unrelated club teams whose ids don't match the fixtures, causing FK
+    // failures). Instead we derive the team set from the season's events themselves, so
+    // team ids are guaranteed consistent with the fixtures that reference them. Each event
+    // carries the team name + badge for both sides.
+    const events = await this.loadEvents();
+    const byId = new Map<number, ProviderTeam>();
+    for (const e of events) {
+      if (e.idHomeTeam) {
+        byId.set(Number(e.idHomeTeam), {
+          id: Number(e.idHomeTeam),
+          name: e.strHomeTeam ?? `Team ${e.idHomeTeam}`,
+          logoUrl: e.strHomeTeamBadge ?? null,
+        });
+      }
+      if (e.idAwayTeam) {
+        byId.set(Number(e.idAwayTeam), {
+          id: Number(e.idAwayTeam),
+          name: e.strAwayTeam ?? `Team ${e.idAwayTeam}`,
+          logoUrl: e.strAwayTeamBadge ?? null,
+        });
+      }
+    }
+    return [...byId.values()];
   }
 
   async fetchFixtures(): Promise<ProviderFixture[]> {
-    // eventsseason returns the full season schedule in one call (idempotent re-sync).
-    const data = await this.get<{ events: SportsDbEvent[] | null }>(
-      `eventsseason.php?id=${encodeURIComponent(this.leagueId!)}&s=${encodeURIComponent(
-        this.season!,
-      )}`,
-    );
-    const events = data.events ?? [];
+    const events = await this.loadEvents();
     const out: ProviderFixture[] = [];
     for (const e of events) {
       if (!e.idEvent || !e.idHomeTeam || !e.idAwayTeam) continue;
@@ -129,17 +149,14 @@ export class TheSportsDbProvider implements FixturesProvider {
   }
 }
 
-interface SportsDbTeam {
-  idTeam?: string;
-  strTeam?: string;
-  strTeamBadge?: string;
-  strTeamLogo?: string;
-}
-
 interface SportsDbEvent {
   idEvent?: string;
   idHomeTeam?: string;
   idAwayTeam?: string;
+  strHomeTeam?: string;
+  strAwayTeam?: string;
+  strHomeTeamBadge?: string;
+  strAwayTeamBadge?: string;
   strEvent?: string;
   strRound?: string;
   strStatus?: string;
