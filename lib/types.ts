@@ -44,6 +44,10 @@ export interface FixtureDTO {
   awayScore: number | null;
   window: WindowState;
   myBet: MyBetDTO | null;
+  // Set when a knockout was decided after 90' (ET/penalties) and the admin still needs to
+  // enter the 90-minute score (§14.4). resultDuration is the feed's match duration.
+  needsManualResult: boolean;
+  resultDuration: string | null;
 }
 
 export interface LeaderboardRow {

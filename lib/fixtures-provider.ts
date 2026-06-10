@@ -4,6 +4,7 @@
 // key-less public API. API-Football can be added later as a third adapter.
 import type { FixtureStatus } from "@/lib/types";
 import { prisma } from "@/lib/prisma";
+import { applyFeedResult, type FeedDuration } from "@/lib/scoring";
 import { TEAMS, FIXTURES } from "@/prisma/seed-data";
 
 export interface ProviderTeam {
@@ -19,6 +20,11 @@ export interface ProviderFixture {
   kickoffAt: Date;
   round: string;
   status: FixtureStatus;
+  // Result fields — only set by providers that report scores (football-data.org), and
+  // only when the match is FINISHED. Drives auto-import (handoff §14.4 via applyFeedResult).
+  homeScore?: number | null;
+  awayScore?: number | null;
+  duration?: "REGULAR" | "EXTRA_TIME" | "PENALTY_SHOOTOUT";
 }
 
 export interface FixturesProvider {
@@ -337,6 +343,10 @@ interface FdTeam {
   name?: string;
   crest?: string;
 }
+interface FdScore {
+  duration?: string; // REGULAR | EXTRA_TIME | PENALTY_SHOOTOUT
+  fullTime?: { home?: number | null; away?: number | null };
+}
 interface FdMatch {
   id?: number;
   utcDate?: string;
@@ -345,6 +355,7 @@ interface FdMatch {
   group?: string;
   homeTeam?: FdTeam;
   awayTeam?: FdTeam;
+  score?: FdScore;
 }
 
 export class FootballDataProvider implements FixturesProvider {
@@ -385,13 +396,20 @@ export class FootballDataProvider implements FixturesProvider {
       if (!m.id || !home || !away || !m.utcDate) continue;
       const kickoffAt = new Date(m.utcDate);
       if (isNaN(kickoffAt.getTime())) continue;
+      const status = mapFootballDataStatus(m.status);
+      const ft = m.score?.fullTime;
+      const duration = m.score?.duration as ProviderFixture["duration"] | undefined;
       out.push({
         id: m.id,
         homeTeamId: home,
         awayTeamId: away,
         kickoffAt,
         round: footballDataRound(m),
-        status: mapFootballDataStatus(m.status),
+        status,
+        // Carry the result only for finished matches; applyFeedResult enforces the 90' rule.
+        homeScore: status === "FINISHED" ? ft?.home ?? null : null,
+        awayScore: status === "FINISHED" ? ft?.away ?? null : null,
+        duration,
       });
     }
     return out;
@@ -420,17 +438,25 @@ export function getProvider(): FixturesProvider {
 
 const SYNC_LAST_KEY = "last_sync_at";
 
-// Upsert teams then fixtures, idempotently, preserving admin-confirmed results:
-// once a fixture is FINISHED, sync must NOT clobber its score/status (handoff §7 —
-// scores are admin-authoritative, the sync feed is display-only). Returns counts.
+export interface SyncResult {
+  teams: number;
+  fixtures: number;
+  scored?: number; // results auto-imported & bets scored (REGULAR matches)
+  manual?: number; // ET/penalty matches flagged for admin 90' entry
+  skipped?: boolean;
+}
+
+// Upsert teams + fixtures and auto-import results, idempotently. Preserves resolved
+// fixtures (admin-confirmed OR already auto-scored OR flagged for manual entry) so a
+// re-sync never clobbers them (handoff §7 — scores are authoritative once set).
 //
-// Quota guard: if SYNC_MIN_INTERVAL_MINUTES > 0 and the last sync was more recent than
-// that, skip the provider call entirely (protects metered providers like API-Football's
-// 100/day cap from rapid manual re-syncs). Pass { force: true } to override. Default 0 = off.
+// opts.skipTeams: skip the teams call/upsert (teams are static during a tournament — used
+//   by the per-minute loop to halve API calls).
+// opts.force: bypass the SYNC_MIN_INTERVAL_MINUTES quota guard.
 export async function syncFixtures(
   provider: FixturesProvider = getProvider(),
-  opts: { force?: boolean } = {},
-): Promise<{ teams: number; fixtures: number; skipped?: boolean }> {
+  opts: { force?: boolean; skipTeams?: boolean } = {},
+): Promise<SyncResult> {
   const minMinutes = Number(process.env.SYNC_MIN_INTERVAL_MINUTES || 0);
   if (!opts.force && minMinutes > 0) {
     const last = await prisma.setting.findUnique({ where: { key: SYNC_LAST_KEY } });
@@ -441,37 +467,43 @@ export async function syncFixtures(
     }
   }
 
-  const [teams, fixtures] = await Promise.all([
-    provider.fetchTeams(),
-    provider.fetchFixtures(),
-  ]);
-
-  // Teams first so fixture FKs resolve.
-  for (const t of teams) {
-    await prisma.team.upsert({
-      where: { id: t.id },
-      update: { name: t.name, logoUrl: t.logoUrl },
-      create: { id: t.id, name: t.name, logoUrl: t.logoUrl },
-    });
+  // Teams first so fixture FKs resolve (unless skipping — teams already present).
+  let teamCount: number;
+  if (opts.skipTeams) {
+    teamCount = await prisma.team.count();
+  } else {
+    const teams = await provider.fetchTeams();
+    for (const t of teams) {
+      await prisma.team.upsert({
+        where: { id: t.id },
+        update: { name: t.name, logoUrl: t.logoUrl },
+        create: { id: t.id, name: t.name, logoUrl: t.logoUrl },
+      });
+    }
+    teamCount = teams.length;
   }
 
-  // Which fixtures are already finalized by the admin? Don't overwrite those.
-  const finalized = new Set(
+  const fixtures = await provider.fetchFixtures();
+
+  // A fixture is "resolved" — and must not be re-processed/clobbered — once it has a
+  // score (admin or auto) OR is flagged for manual entry. A FINISHED fixture without a
+  // score and not flagged is NOT resolved: we still try to import its result below.
+  const resolved = new Set(
     (
       await prisma.fixture.findMany({
-        where: { status: "FINISHED" },
+        where: { OR: [{ homeScore: { not: null } }, { needsManualResult: true }] },
         select: { id: true },
       })
     ).map((f) => f.id),
   );
 
   let fixtureCount = 0;
+  let scored = 0;
+  let manual = 0;
   for (const f of fixtures) {
-    if (finalized.has(f.id)) {
-      // Preserve admin-confirmed score/status; nothing to update.
-      fixtureCount++;
-      continue;
-    }
+    fixtureCount++;
+    if (resolved.has(f.id)) continue; // leave finalized results untouched
+
     await prisma.fixture.upsert({
       where: { id: f.id },
       update: {
@@ -490,7 +522,19 @@ export async function syncFixtures(
         status: f.status,
       },
     });
-    fixtureCount++;
+
+    // Auto-import a freshly-finished result when the feed provides one (§14.4 enforced
+    // by applyFeedResult: REGULAR -> score now; ET/penalties -> flag for admin).
+    if (f.status === "FINISHED" && f.homeScore != null && f.awayScore != null) {
+      const outcome = await applyFeedResult(
+        f.id,
+        f.homeScore,
+        f.awayScore,
+        (f.duration ?? "REGULAR") as FeedDuration,
+      );
+      if (outcome === "scored") scored++;
+      else manual++;
+    }
   }
 
   // Record sync time for the quota-guard throttle above.
@@ -501,5 +545,5 @@ export async function syncFixtures(
     create: { key: SYNC_LAST_KEY, value: now },
   });
 
-  return { teams: teams.length, fixtures: fixtureCount };
+  return { teams: teamCount, fixtures: fixtureCount, scored, manual };
 }

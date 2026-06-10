@@ -51,6 +51,8 @@ export async function GET(req: NextRequest) {
         status: f.status as FixtureStatus,
         homeScore: f.homeScore,
         awayScore: f.awayScore,
+        needsManualResult: f.needsManualResult,
+        resultDuration: f.resultDuration,
         window: windowState(now, f, settings),
         myBet: bet
           ? {

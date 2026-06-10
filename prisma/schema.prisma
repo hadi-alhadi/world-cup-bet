@@ -48,6 +48,11 @@ model Fixture {
   homeScore   Int?
   awayScore   Int?
   resultSetAt DateTime?
+  // Auto-import support: set when the feed reports a knockout decided after 90'
+  // (ET/penalties). Per §14.4 bets score on the 90-minute result, which the feed does
+  // NOT expose for such matches, so the admin must enter the 90' score; this flags it.
+  needsManualResult Boolean  @default(false)
+  resultDuration    String? // feed duration: REGULAR | EXTRA_TIME | PENALTY_SHOOTOUT
   bets        Bet[]
 
   @@index([kickoffAt])

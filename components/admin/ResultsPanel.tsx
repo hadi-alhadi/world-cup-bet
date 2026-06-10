@@ -50,8 +50,17 @@ function ResultRow({
       <div className="min-w-0 flex-1">
         <div className="text-[11px] text-slate-400">
           {fixture.round ?? "Fixture"} · {fmtShort(fixture.kickoffAt)}
-          {fixture.status === "FINISHED" && (
+          {fixture.status === "FINISHED" && !fixture.needsManualResult && fixture.homeScore != null && (
             <span className="ml-1 font-semibold text-brand">· finalized</span>
+          )}
+          {fixture.needsManualResult && (
+            <span
+              data-testid={`needs-manual-${fixture.id}`}
+              className="ml-1 font-semibold text-amber-600"
+              title="Decided after 90 minutes — enter the 90-minute score (a draw at 90')."
+            >
+              · ⏱ extra time — enter 90&apos; score
+            </span>
           )}
         </div>
         <div className="flex items-center gap-2 text-sm font-semibold">

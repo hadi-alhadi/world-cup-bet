@@ -26,6 +26,7 @@ export function scoreBet(
 }
 
 // Confirm a result and (re)score every bet on the fixture in one transaction.
+// Clears needsManualResult — entering a 90' score resolves any ET/penalty flag.
 export async function scoreFixture(
   fixtureId: number,
   homeScore: number,
@@ -39,6 +40,7 @@ export async function scoreFixture(
         awayScore,
         status: "FINISHED",
         resultSetAt: new Date(),
+        needsManualResult: false,
       },
     });
     const bets = await tx.bet.findMany({ where: { fixtureId } });
@@ -48,6 +50,32 @@ export async function scoreFixture(
     }
     return { fixtureId, scoredBets: bets.length };
   });
+}
+
+export type FeedDuration = "REGULAR" | "EXTRA_TIME" | "PENALTY_SHOOTOUT";
+
+// Apply a result that arrived from the sync feed, honoring §14.4 (bets score on the
+// 90-minute result, excluding ET/penalties):
+//  - REGULAR: fullTime IS the 90' result -> auto-score normally.
+//  - EXTRA_TIME / PENALTY_SHOOTOUT: the match was level at 90' (a DRAW), but the feed
+//    folds ET goals into fullTime so the exact 90' score is unknown. Mark the fixture
+//    FINISHED + needsManualResult so the admin enters the 90' score; do NOT score bets.
+export async function applyFeedResult(
+  fixtureId: number,
+  homeScore: number,
+  awayScore: number,
+  duration: FeedDuration,
+): Promise<"scored" | "manual"> {
+  if (duration === "REGULAR") {
+    await scoreFixture(fixtureId, homeScore, awayScore);
+    await prisma.fixture.update({ where: { id: fixtureId }, data: { resultDuration: duration } });
+    return "scored";
+  }
+  await prisma.fixture.update({
+    where: { id: fixtureId },
+    data: { status: "FINISHED", needsManualResult: true, resultDuration: duration },
+  });
+  return "manual";
 }
 
 // Award champion points: 6 to picks matching teamId, 0 to the rest. Idempotent.
