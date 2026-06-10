@@ -299,11 +299,112 @@ export class ApiFootballProvider implements FixturesProvider {
   }
 }
 
+// --- FootballDataProvider: football-data.org v4 ----------------------------------
+// The only free source with the COMPLETE FIFA World Cup 2026 (48 teams, 104 matches),
+// including results once matches finish (score.fullTime). Two cheap calls per sync:
+// /competitions/{comp}/teams (with crests) + /competitions/{comp}/matches. Free tier =
+// 10 req/min; with the 8h cron that's ~6 req/day. Auth header: X-Auth-Token.
+
+function mapFootballDataStatus(status: string | undefined): FixtureStatus {
+  switch ((status ?? "").toUpperCase()) {
+    case "SCHEDULED":
+    case "TIMED":
+      return "SCHEDULED";
+    case "IN_PLAY":
+    case "PAUSED":
+      return "LIVE";
+    case "FINISHED":
+    case "AWARDED":
+      return "FINISHED";
+    case "POSTPONED":
+    case "SUSPENDED":
+      return "POSTPONED";
+    case "CANCELLED":
+      return "CANCELLED";
+    default:
+      return "SCHEDULED";
+  }
+}
+
+function footballDataRound(m: FdMatch): string {
+  if (m.group) return m.group.replace(/^GROUP_/, "Group ");
+  if (m.stage) return m.stage.replace(/_/g, " ").toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
+  return "Fixture";
+}
+
+interface FdTeam {
+  id?: number;
+  name?: string;
+  crest?: string;
+}
+interface FdMatch {
+  id?: number;
+  utcDate?: string;
+  status?: string;
+  stage?: string;
+  group?: string;
+  homeTeam?: FdTeam;
+  awayTeam?: FdTeam;
+}
+
+export class FootballDataProvider implements FixturesProvider {
+  private key = process.env.FOOTBALLDATA_KEY;
+  private competition = process.env.FOOTBALLDATA_COMPETITION || "WC"; // WC = FIFA World Cup
+  private season = process.env.FOOTBALLDATA_SEASON; // optional start-year; default = current
+  private base = "https://api.football-data.org/v4";
+
+  constructor() {
+    if (!this.key) throw new Error("FootballDataProvider requires FOOTBALLDATA_KEY");
+  }
+
+  private async get<T>(path: string): Promise<T> {
+    const sep = path.includes("?") ? "&" : "?";
+    const url = `${this.base}${path}${this.season ? `${sep}season=${encodeURIComponent(this.season)}` : ""}`;
+    const res = await fetch(url, { headers: { "X-Auth-Token": this.key! }, cache: "no-store" });
+    if (!res.ok) {
+      const body = await res.text().catch(() => "");
+      throw new Error(`football-data.org request failed: ${res.status} ${res.statusText} ${body}`);
+    }
+    return (await res.json()) as T;
+  }
+
+  async fetchTeams(): Promise<ProviderTeam[]> {
+    const data = await this.get<{ teams?: FdTeam[] }>(`/competitions/${this.competition}/teams`);
+    return (data.teams ?? [])
+      .filter((t) => t.id)
+      .map((t) => ({ id: t.id!, name: t.name ?? `Team ${t.id}`, logoUrl: t.crest ?? null }));
+  }
+
+  async fetchFixtures(): Promise<ProviderFixture[]> {
+    const data = await this.get<{ matches?: FdMatch[] }>(`/competitions/${this.competition}/matches`);
+    const out: ProviderFixture[] = [];
+    for (const m of data.matches ?? []) {
+      const home = m.homeTeam?.id;
+      const away = m.awayTeam?.id;
+      // Knockout matches can have null teams until the bracket fills in — skip those.
+      if (!m.id || !home || !away || !m.utcDate) continue;
+      const kickoffAt = new Date(m.utcDate);
+      if (isNaN(kickoffAt.getTime())) continue;
+      out.push({
+        id: m.id,
+        homeTeamId: home,
+        awayTeamId: away,
+        kickoffAt,
+        round: footballDataRound(m),
+        status: mapFootballDataStatus(m.status),
+      });
+    }
+    return out;
+  }
+}
+
 // --- Selection + sync ------------------------------------------------------------
 
 export function getProvider(): FixturesProvider {
   const name = (process.env.FIXTURES_PROVIDER || "seed").toLowerCase();
   switch (name) {
+    case "footballdata":
+      return new FootballDataProvider();
     case "apifootball":
       return new ApiFootballProvider();
     case "thesportsdb":
@@ -312,7 +413,7 @@ export function getProvider(): FixturesProvider {
       return new SeedProvider();
     default:
       throw new Error(
-        `Unknown FIXTURES_PROVIDER: "${name}" (expected "seed", "thesportsdb", or "apifootball")`,
+        `Unknown FIXTURES_PROVIDER: "${name}" (expected "seed", "thesportsdb", "apifootball", or "footballdata")`,
       );
   }
 }
