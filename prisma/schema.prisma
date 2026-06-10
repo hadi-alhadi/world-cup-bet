@@ -1,0 +1,86 @@
+// Privilee Bet — Prisma schema (handoff §4). SQLite-compatible, runs on Turso/libSQL.
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL") // local: file:./dev.db ; prod: set via libsql adapter
+}
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["driverAdapters"]
+}
+
+// NOTE: SQLite/libSQL has no native enums. These are stored as String columns; the
+// allowed values live in lib/types.ts (Role | Outcome | FixtureStatus) and are enforced
+// by Zod at the API boundary.
+//   Role:          USER | ADMIN
+//   Outcome:       HOME | DRAW | AWAY
+//   FixtureStatus: SCHEDULED | LIVE | FINISHED | POSTPONED | CANCELLED
+
+model User {
+  id         String      @id @default(cuid())
+  email      String      @unique
+  name       String?
+  image      String?
+  role       String      @default("USER")
+  createdAt  DateTime    @default(now())
+  bets       Bet[]
+  winnerPick WinnerPick?
+}
+
+model Team {
+  id           Int          @id // provider team id
+  name         String
+  logoUrl      String?
+  homeFixtures Fixture[]    @relation("home")
+  awayFixtures Fixture[]    @relation("away")
+  winnerPicks  WinnerPick[]
+}
+
+model Fixture {
+  id          Int           @id // provider fixture id
+  homeTeamId  Int
+  awayTeamId  Int
+  homeTeam    Team          @relation("home", fields: [homeTeamId], references: [id])
+  awayTeam    Team          @relation("away", fields: [awayTeamId], references: [id])
+  kickoffAt   DateTime // UTC
+  round       String?
+  status      String        @default("SCHEDULED")
+  homeScore   Int?
+  awayScore   Int?
+  resultSetAt DateTime?
+  bets        Bet[]
+
+  @@index([kickoffAt])
+}
+
+model Bet {
+  id        String   @id @default(cuid())
+  userId    String
+  fixtureId Int
+  user      User     @relation(fields: [userId], references: [id])
+  fixture   Fixture  @relation(fields: [fixtureId], references: [id])
+  outcome   String 
+  predHome  Int
+  predAway  Int
+  points    Int?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, fixtureId])
+  @@index([fixtureId])
+}
+
+model WinnerPick {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  teamId    Int
+  user      User     @relation(fields: [userId], references: [id])
+  team      Team     @relation(fields: [teamId], references: [id])
+  points    Int?
+  createdAt DateTime @default(now())
+}
+
+model Setting {
+  key   String @id
+  value String
+}
