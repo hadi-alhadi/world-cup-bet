@@ -27,6 +27,10 @@ await page.screenshot({ path: `${OUT}/01b-dev-login.png`, fullPage: true });
 // Admin (sees everything)
 await login(page, "ha@privilee.ae");
 await page.waitForTimeout(800);
+// Show ALL fixtures (default "upcoming" is empty for a historical tournament).
+const allFilter = page.getByTestId("filter-all");
+if (await allFilter.count()) await allFilter.click();
+await page.waitForTimeout(800);
 await page.screenshot({ path: `${OUT}/02-games.png`, fullPage: true });
 
 await page.goto(`${BASE}/leaderboard`);
