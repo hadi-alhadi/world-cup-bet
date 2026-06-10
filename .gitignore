@@ -14,3 +14,4 @@ prisma/*.db-*
 /playwright/.cache
 .DS_Store
 screenshots/
+*.tsbuildinfo
