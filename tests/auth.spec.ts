@@ -6,7 +6,9 @@ test.describe("auth & authorization", () => {
     await page.goto("/games");
     await page.waitForURL("**/login**");
     await expect(page).toHaveURL(/\/login/);
-    await expect(page.getByTestId("dev-email")).toBeVisible();
+    // Main login is Google-only now; the dev box lives at /dev-login.
+    await expect(page.getByTestId("google-signin")).toBeVisible();
+    await expect(page.getByTestId("dev-email")).toHaveCount(0);
   });
 
   test("dev login as a regular user reaches /games", async ({ page }) => {

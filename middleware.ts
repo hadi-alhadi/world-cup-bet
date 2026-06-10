@@ -22,6 +22,7 @@ export default auth((req) => {
   if (
     pathname.startsWith("/api/auth") ||
     pathname === "/login" ||
+    pathname === "/dev-login" ||
     pathname === "/api/admin/sync"
   ) {
     return NextResponse.next();

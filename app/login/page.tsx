@@ -2,7 +2,7 @@
 
 import { signIn } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
-import { Suspense, useState } from "react";
+import { Suspense } from "react";
 
 function errorMessage(code: string | null): string | null {
   if (!code) return null;
@@ -19,17 +19,7 @@ function errorMessage(code: string | null): string | null {
 function LoginInner() {
   const params = useSearchParams();
   const error = errorMessage(params.get("error"));
-  const [email, setEmail] = useState("");
-  const [busy, setBusy] = useState(false);
-
   const callbackUrl = params.get("callbackUrl") || "/games";
-
-  function devSignIn(e: React.FormEvent) {
-    e.preventDefault();
-    if (!email.trim()) return;
-    setBusy(true);
-    void signIn("dev", { email: email.trim(), callbackUrl });
-  }
 
   return (
     <div className="mx-auto flex min-h-[70vh] max-w-md flex-col justify-center">
@@ -40,7 +30,7 @@ function LoginInner() {
           </div>
           <h1 className="text-2xl font-bold">Privilee Bet</h1>
           <p className="mt-1 text-sm text-slate-500">
-            Sign in to predict matches and climb the leaderboard.
+            Sign in with your Privilee account to predict matches and climb the leaderboard.
           </p>
         </div>
 
@@ -63,39 +53,9 @@ function LoginInner() {
           <span aria-hidden>🟢</span> Sign in with Google
         </button>
 
-        <div className="my-5 flex items-center gap-3 text-xs text-slate-400">
-          <span className="h-px flex-1 bg-slate-200" />
-          OR
-          <span className="h-px flex-1 bg-slate-200" />
-        </div>
-
-        <form onSubmit={devSignIn} className="space-y-3">
-          <label htmlFor="dev-email" className="block text-sm font-medium text-slate-700">
-            Dev login
-          </label>
-          <input
-            id="dev-email"
-            data-testid="dev-email"
-            type="email"
-            inputMode="email"
-            placeholder="you@privilee.ae"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className="input"
-            required
-          />
-          <button
-            type="submit"
-            data-testid="dev-signin"
-            disabled={busy}
-            className="btn-brand w-full py-2.5"
-          >
-            {busy ? "Signing in…" : "Continue"}
-          </button>
-          <p className="text-xs text-slate-400">
-            Dev login (any @privilee.ae email; ha@privilee.ae is admin)
-          </p>
-        </form>
+        <p className="mt-4 text-center text-xs text-slate-400">
+          Only @privilee.ae accounts can sign in.
+        </p>
       </div>
     </div>
   );

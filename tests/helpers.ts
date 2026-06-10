@@ -3,11 +3,11 @@ import { expect, type Page } from "@playwright/test";
 export const ADMIN_EMAIL = "ha@privilee.ae";
 
 /**
- * Dev mock login (AUTH_DEV_MODE=true). Navigates to /login, fills the dev-email
+ * Dev mock login (AUTH_DEV_MODE=true). Navigates to /dev-login, fills the dev-email
  * input with a @privilee.ae address, submits, and waits for the post-login /games page.
  */
 export async function login(page: Page, email: string): Promise<void> {
-  await page.goto("/login");
+  await page.goto("/dev-login");
   await page.getByTestId("dev-email").fill(email);
   await page.getByTestId("dev-signin").click();
   // signIn redirects to callbackUrl (/games by default).

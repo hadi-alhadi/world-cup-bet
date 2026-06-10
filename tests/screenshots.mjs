@@ -7,7 +7,7 @@ fs.mkdirSync(OUT, { recursive: true });
 const BASE = "http://localhost:3000";
 
 async function login(page, email) {
-  await page.goto(`${BASE}/login`);
+  await page.goto(`${BASE}/dev-login`);
   await page.getByTestId("dev-email").fill(email);
   await page.getByTestId("dev-signin").click();
   await page.waitForURL("**/games", { timeout: 15000 });
@@ -16,10 +16,13 @@ async function login(page, email) {
 const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
 
-// Login page (logged out)
+// Login page (Google only) + separate dev login
 await page.goto(`${BASE}/login`);
 await page.waitForTimeout(400);
 await page.screenshot({ path: `${OUT}/01-login.png`, fullPage: true });
+await page.goto(`${BASE}/dev-login`);
+await page.waitForTimeout(400);
+await page.screenshot({ path: `${OUT}/01b-dev-login.png`, fullPage: true });
 
 // Admin (sees everything)
 await login(page, "ha@privilee.ae");
