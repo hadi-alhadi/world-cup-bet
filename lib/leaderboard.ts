@@ -2,6 +2,7 @@
 // titles. Ranking is computed in JS (not SQL) because the §14.5 tiebreaker needs the
 // average Bet.updatedAt per user, which is awkward to express portably across libSQL.
 import { prisma } from "@/lib/prisma";
+import { badgesByUser } from "@/lib/badges";
 import type { LeaderboardRow } from "@/lib/types";
 
 interface UserAgg {
@@ -76,6 +77,9 @@ export async function getLeaderboard(meId?: string): Promise<LeaderboardRow[]> {
     return (a.name ?? "").localeCompare(b.name ?? "");
   });
 
+  // Decorate with earned badge keys (Tier 2). One query for all users; default [].
+  const badgeMap = await badgesByUser(aggs.map((a) => a.userId));
+
   const totalUsers = aggs.length;
   return aggs.map((a, i) => {
     const rank = i + 1; // sequential — no shared ranks (§10, tiebreaker is near-unique)
@@ -89,6 +93,7 @@ export async function getLeaderboard(meId?: string): Promise<LeaderboardRow[]> {
       rank,
       streak: a.streak,
       title: punditTitle(rank, totalUsers),
+      badges: badgeMap.get(a.userId) ?? [],
       ...(meId ? { isMe: a.userId === meId } : {}),
     };
   });

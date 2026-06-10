@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import confetti from "canvas-confetti";
-import type { FixtureDTO, MyBetDTO } from "@/lib/types";
+import type { CommunityPicks, FixtureDTO, MyBetDTO } from "@/lib/types";
 import { TeamLogo } from "@/components/TeamBadge";
 import { BetForm } from "@/components/BetForm";
 import { Countdown } from "@/components/Countdown";
@@ -69,6 +69,15 @@ export function FixtureCard({ fixture }: { fixture: FixtureDTO }) {
         </div>
       </div>
 
+      {fixture.communityPicks && fixture.communityPicks.total > 0 && (
+        <CommunityPicksBar
+          fixtureId={fixture.id}
+          homeName={fixture.homeTeam.name}
+          awayName={fixture.awayTeam.name}
+          picks={fixture.communityPicks}
+        />
+      )}
+
       {/* Window countdown (only while still bettable / upcoming). */}
       {!finished && fixture.window.canBet && (
         <p className="mt-2 text-center text-xs text-slate-500">
@@ -104,6 +113,56 @@ export function FixtureCard({ fixture }: { fixture: FixtureDTO }) {
         </p>
       )}
     </article>
+  );
+}
+
+function CommunityPicksBar({
+  fixtureId,
+  homeName,
+  awayName,
+  picks,
+}: {
+  fixtureId: number;
+  homeName: string;
+  awayName: string;
+  picks: CommunityPicks;
+}) {
+  // Round to whole percents; total is guaranteed > 0 by the caller.
+  const pct = (n: number) => Math.round((n / picks.total) * 100);
+  const homePct = pct(picks.home);
+  const drawPct = pct(picks.draw);
+  const awayPct = pct(picks.away);
+
+  const segments = [
+    { key: "home", label: "1", pct: homePct, cls: "bg-brand" },
+    { key: "draw", label: "X", pct: drawPct, cls: "bg-slate-400" },
+    { key: "away", label: "2", pct: awayPct, cls: "bg-amber-500" },
+  ];
+
+  return (
+    <div data-testid={`community-picks-${fixtureId}`} className="mt-3">
+      <p className="mb-1 text-[11px] font-medium text-slate-400">
+        Community picks ({picks.total})
+      </p>
+      <div className="flex h-2.5 overflow-hidden rounded-full bg-slate-100">
+        {segments.map((s) =>
+          s.pct > 0 ? (
+            <span
+              key={s.key}
+              className={s.cls}
+              style={{ width: `${s.pct}%` }}
+              aria-hidden
+            />
+          ) : null,
+        )}
+      </div>
+      <p className="mt-1 text-[11px] text-slate-500">
+        <span className="font-semibold text-slate-700">{homeName}</span> {homePct}
+        % <span className="text-slate-300">·</span> Draw {drawPct}%{" "}
+        <span className="text-slate-300">·</span>{" "}
+        <span className="font-semibold text-slate-700">{awayName}</span> {awayPct}%
+      </p>
+    </div>
   );
 }
 

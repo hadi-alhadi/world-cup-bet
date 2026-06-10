@@ -3,6 +3,8 @@
 import type { Bet, Fixture } from "@prisma/client";
 import type { Outcome } from "@/lib/types";
 import { prisma } from "@/lib/prisma";
+import { awardMatchBadges, awardProphet } from "@/lib/badges";
+import { getWindowSettings } from "@/lib/settings";
 
 export const POINTS_OUTCOME = 1;
 export const POINTS_EXACT_BONUS = 2; // exact score => 3 total
@@ -32,6 +34,9 @@ export async function scoreFixture(
   homeScore: number,
   awayScore: number,
 ): Promise<{ fixtureId: number; scoredBets: number }> {
+  // Read window settings before the tx so badge awarding (Early Bird) doesn't open a
+  // second connection mid-transaction.
+  const { openBeforeHours } = await getWindowSettings();
   return prisma.$transaction(async (tx) => {
     const fixture = await tx.fixture.update({
       where: { id: fixtureId },
@@ -48,6 +53,7 @@ export async function scoreFixture(
       const points = scoreBet(bet, fixture);
       await tx.bet.update({ where: { id: bet.id }, data: { points } });
     }
+    await awardMatchBadges(tx, fixtureId, openBeforeHours);
     return { fixtureId, scoredBets: bets.length };
   });
 }
@@ -86,6 +92,7 @@ export async function scoreWinnerPicks(teamId: number): Promise<{ scored: number
       const points = pick.teamId === teamId ? POINTS_CHAMPION : 0;
       await tx.winnerPick.update({ where: { id: pick.id }, data: { points } });
     }
+    await awardProphet(tx, teamId);
     return { scored: picks.length };
   });
 }

@@ -9,11 +9,13 @@ export default defineConfig({
   testDir: "./tests",
   // Re-seed the dev DB to the deterministic baseline before each run (QA infra only).
   globalSetup: "./tests/global-setup.ts",
-  // Run files in parallel; keep within CI's worker budget.
-  fullyParallel: true,
+  // Serialize: the Next dev server compiles routes on-demand, so many parallel workers
+  // hammering uncompiled routes causes cold-compile timeouts. One worker is plenty here
+  // (~26s) and fully deterministic.
+  fullyParallel: false,
   forbidOnly: !!process.env.CI,
-  retries: process.env.CI ? 2 : 0,
-  workers: process.env.CI ? 1 : undefined,
+  retries: process.env.CI ? 2 : 1,
+  workers: 1,
   reporter: process.env.CI ? [["github"], ["html", { open: "never" }]] : "list",
 
   timeout: 30_000,

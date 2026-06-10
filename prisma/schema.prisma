@@ -25,6 +25,21 @@ model User {
   createdAt  DateTime    @default(now())
   bets       Bet[]
   winnerPick WinnerPick?
+  badges     UserBadge[]
+}
+
+// Tier-2 gamification. Badge catalog lives in lib/badges.ts (badgeKey); rows here are
+// awards. Awarded idempotently inside the scoring transaction — the unique constraint
+// makes re-scoring a no-op (no double-award).
+model UserBadge {
+  id        String   @id @default(cuid())
+  userId    String
+  badgeKey  String
+  awardedAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id])
+
+  @@unique([userId, badgeKey])
+  @@index([userId])
 }
 
 model Team {

@@ -7,7 +7,7 @@ import { handle, requireUser } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 import { getWindowSettings } from "@/lib/settings";
 import { windowState } from "@/lib/betting-window";
-import type { FixtureDTO, FixtureStatus, Outcome } from "@/lib/types";
+import type { CommunityPicks, FixtureDTO, FixtureStatus, Outcome } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
@@ -40,6 +40,39 @@ export async function GET(req: NextRequest) {
     ]);
 
     const now = new Date();
+
+    // Community picks reveal: only once the window is no longer OPEN and not still
+    // waiting to open — i.e. CLOSED, LIVE, or FINISHED. Keeping it hidden while OPEN
+    // (or NOT_OPEN_YET) means the distribution can't influence live bets.
+    const windows = new Map(fixtures.map((f) => [f.id, windowState(now, f, settings)]));
+    const revealedIds = fixtures
+      .filter((f) => {
+        const r = windows.get(f.id)!.reason;
+        return r !== "OPEN" && r !== "NOT_OPEN_YET";
+      })
+      .map((f) => f.id);
+
+    // One groupBy for all revealed fixtures' outcome counts, then index by fixtureId.
+    const picksByFixture = new Map<number, CommunityPicks>();
+    if (revealedIds.length > 0) {
+      const grouped = await prisma.bet.groupBy({
+        by: ["fixtureId", "outcome"],
+        where: { fixtureId: { in: revealedIds } },
+        _count: { _all: true },
+      });
+      for (const id of revealedIds) {
+        picksByFixture.set(id, { home: 0, draw: 0, away: 0, total: 0 });
+      }
+      for (const g of grouped) {
+        const cp = picksByFixture.get(g.fixtureId)!;
+        const n = g._count._all;
+        if (g.outcome === "HOME") cp.home += n;
+        else if (g.outcome === "DRAW") cp.draw += n;
+        else if (g.outcome === "AWAY") cp.away += n;
+        cp.total += n;
+      }
+    }
+
     const dto: FixtureDTO[] = fixtures.map((f) => {
       const bet = f.bets[0];
       return {
@@ -53,7 +86,8 @@ export async function GET(req: NextRequest) {
         awayScore: f.awayScore,
         needsManualResult: f.needsManualResult,
         resultDuration: f.resultDuration,
-        window: windowState(now, f, settings),
+        window: windows.get(f.id)!,
+        communityPicks: picksByFixture.get(f.id) ?? null,
         myBet: bet
           ? {
               outcome: bet.outcome as Outcome,

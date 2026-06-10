@@ -48,6 +48,16 @@ export interface FixtureDTO {
   // enter the 90-minute score (§14.4). resultDuration is the feed's match duration.
   needsManualResult: boolean;
   resultDuration: string | null;
+  // Community pick distribution — only revealed once the betting window has CLOSED
+  // (null while open, so it can't influence live bets). Counts of each outcome.
+  communityPicks: CommunityPicks | null;
+}
+
+export interface CommunityPicks {
+  home: number;
+  draw: number;
+  away: number;
+  total: number;
 }
 
 export interface LeaderboardRow {
@@ -60,5 +70,23 @@ export interface LeaderboardRow {
   rank: number;
   streak: number; // current consecutive correct (>=1 pt) by kickoff order
   title: string; // pundit title by rank percentile
+  badges: string[]; // earned badge keys (see lib/badges.ts)
   isMe?: boolean;
+}
+
+// Weekly matchday winner (Tier 3): per-round mini-leaderboard.
+export interface MatchdayStanding {
+  userId: string;
+  name: string | null;
+  image: string | null;
+  points: number;
+  rank: number;
+  isMe?: boolean;
+}
+
+export interface Matchday {
+  round: string; // e.g. "Group A - 1", "Quarter-final 1"
+  finished: boolean; // every fixture in the round is FINISHED
+  winner: MatchdayStanding | null; // top standing once any points exist
+  standings: MatchdayStanding[];
 }

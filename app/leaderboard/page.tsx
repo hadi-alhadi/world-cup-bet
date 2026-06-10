@@ -2,6 +2,7 @@
 
 import type { LeaderboardRow } from "@/lib/types";
 import { Spinner, EmptyState, ErrorState, useApi } from "@/components/state";
+import { BADGE_BY_KEY } from "@/lib/badge-catalog";
 
 function Avatar({ name, image }: { name: string | null; image: string | null }) {
   if (image) {
@@ -89,6 +90,26 @@ export default function LeaderboardPage() {
                     {row.title && (
                       <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-500">
                         {row.title}
+                      </span>
+                    )}
+                    {row.badges.length > 0 && (
+                      <span
+                        data-testid={`leaderboard-badges-${row.userId}`}
+                        className="flex items-center gap-0.5 text-sm leading-none"
+                      >
+                        {row.badges.map((key) => {
+                          const badge = BADGE_BY_KEY[key];
+                          if (!badge) return null;
+                          return (
+                            <span
+                              key={key}
+                              title={badge.name}
+                              aria-label={badge.name}
+                            >
+                              {badge.emoji}
+                            </span>
+                          );
+                        })}
                       </span>
                     )}
                   </div>
