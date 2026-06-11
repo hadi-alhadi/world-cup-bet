@@ -174,6 +174,51 @@ function SyncPanel() {
   );
 }
 
+function DicePanel() {
+  const { toast } = useToast();
+  const [busy, setBusy] = useState(false);
+
+  async function run() {
+    setBusy(true);
+    try {
+      const res = await fetch("/api/admin/dice", { method: "POST" });
+      const body = await res.json().catch(() => null);
+      if (!res.ok) {
+        toast(body?.error?.message ?? "Dice run failed.", "error");
+        return;
+      }
+      const parts = [`placed ${body.betsPlaced} bet${body.betsPlaced === 1 ? "" : "s"}`];
+      if (body.championPicked) parts.push(`picked ${body.championPicked}`);
+      toast(`🎲 Dice ${parts.join(" · ")}`, "success");
+    } catch {
+      toast("Network error — please retry.", "error");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section className="card flex flex-wrap items-center justify-between gap-3 p-5">
+      <div>
+        <h2 className="text-lg font-bold">🎲 Dice bot</h2>
+        <p className="text-sm text-slate-500">
+          Place random predictions on every open game (and a champion) for the Dice
+          leaderboard player. Safe to run repeatedly — it only bets on new games.
+        </p>
+      </div>
+      <button
+        type="button"
+        data-testid="dice-button"
+        onClick={run}
+        disabled={busy}
+        className="btn-brand"
+      >
+        {busy ? "Rolling…" : "Run Dice"}
+      </button>
+    </section>
+  );
+}
+
 function TournamentWinnerPanel() {
   const { toast } = useToast();
   const teamsApi = useApi<TeamDTO[]>("/api/winner-pick/teams");
@@ -261,6 +306,7 @@ export default function AdminPage() {
       <ResultsPanel />
       <SettingsPanel />
       <SyncPanel />
+      <DicePanel />
       <TournamentWinnerPanel />
     </div>
   );
