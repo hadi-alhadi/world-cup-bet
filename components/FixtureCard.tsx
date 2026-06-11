@@ -29,7 +29,7 @@ export function FixtureCard({ fixture }: { fixture: FixtureDTO }) {
         particleCount: 90,
         spread: 70,
         origin: { y: 0.7 },
-        colors: ["#0b6e4f", "#10b981", "#fbbf24"],
+        colors: ["#7688a2", "#a6b2c3", "#fbbf24"],
       });
     }
   }, [finished, myBet?.points]);
