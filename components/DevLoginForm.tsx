@@ -42,7 +42,7 @@ function FormInner() {
         {busy ? "Signing in…" : "Continue"}
       </button>
       <p className="text-xs text-slate-400">
-        Any @privilee.ae email works; ha@privilee.ae is admin.
+        Any @privilee.ae or @privilee.com email works; ha@privilee.ae is admin.
       </p>
     </form>
   );

@@ -16,7 +16,9 @@ const googleProviders =
         Google({
           clientId: process.env.GOOGLE_CLIENT_ID,
           clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-          authorization: { params: { hd: "privilee.ae", prompt: "select_account" } },
+          // No single-domain `hd` hint: we allow both privilee.ae and privilee.com.
+          // The server-side signIn callback enforces the allowed domains — the real gate.
+          authorization: { params: { prompt: "select_account" } },
         }),
       ]
     : [];

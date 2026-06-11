@@ -15,8 +15,11 @@ const ADMIN_EMAILS = (process.env.ADMIN_EMAILS ?? "")
 
 const DEV_MODE = process.env.AUTH_DEV_MODE === "true";
 
+const ALLOWED_DOMAINS = ["@privilee.ae", "@privilee.com"];
+
 function isPrivileeEmail(email: string): boolean {
-  return email.toLowerCase().endsWith("@privilee.ae");
+  const e = email.toLowerCase();
+  return ALLOWED_DOMAINS.some((d) => e.endsWith(d));
 }
 
 function roleFor(email: string): "USER" | "ADMIN" {

@@ -8,9 +8,9 @@ function errorMessage(code: string | null): string | null {
   if (!code) return null;
   switch (code) {
     case "AccessDenied":
-      return "Use your Privilee account (@privilee.ae) to sign in.";
+      return "Use your Privilee account (privilee.ae or privilee.com) to sign in.";
     case "CredentialsSignin":
-      return "Sign-in failed. Use a valid @privilee.ae email.";
+      return "Sign-in failed. Use a valid @privilee.ae or @privilee.com email.";
     default:
       return "Something went wrong signing in. Please try again.";
   }
@@ -84,7 +84,7 @@ function LoginInner() {
           </button>
 
           <p className="mt-4 text-xs text-white/70 drop-shadow md:text-slate-400 md:drop-shadow-none">
-            Only @privilee.ae accounts can sign in.
+            Only @privilee.ae and @privilee.com accounts can sign in.
           </p>
         </div>
       </div>
