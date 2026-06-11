@@ -98,7 +98,7 @@ export function BetForm({ fixture, onSaved }: Props) {
 
   async function save() {
     if (!outcome) {
-      toast("Pick 1, X or 2 first", "error");
+      toast("Pick a result first (Win / Draw / Win)", "error");
       return;
     }
     setSaving(true);
@@ -146,7 +146,7 @@ export function BetForm({ fixture, onSaved }: Props) {
     }
   }
 
-  const outcomeBtn = (key: Outcome, label: string, sub: string) => {
+  const outcomeBtn = (key: Outcome, label: string, sub?: string) => {
     const active = outcome === key;
     return (
       <button
@@ -156,20 +156,23 @@ export function BetForm({ fixture, onSaved }: Props) {
         disabled={!canBet}
         onClick={() => setOutcome(key)}
         className={
-          "flex flex-1 flex-col items-center rounded-xl border px-2 py-2 text-sm font-bold transition " +
+          "flex flex-1 flex-col items-center justify-center gap-0.5 rounded-xl border px-2 py-2.5 transition " +
           (active
             ? "border-brand bg-brand text-white"
             : "border-slate-200 bg-white text-slate-700 hover:border-brand/40")
         }
       >
-        <span>{label}</span>
-        <span
-          className={
-            "text-[10px] font-medium " + (active ? "text-white/80" : "text-slate-400")
-          }
-        >
-          {sub}
-        </span>
+        <span className="text-center text-[13px] font-bold leading-tight">{label}</span>
+        {sub && (
+          <span
+            className={
+              "text-[10px] font-semibold uppercase tracking-wide " +
+              (active ? "text-white/85" : "text-slate-400")
+            }
+          >
+            {sub}
+          </span>
+        )}
       </button>
     );
   };
@@ -186,11 +189,14 @@ export function BetForm({ fixture, onSaved }: Props) {
       )}
 
       <div className="flex gap-2">
-        {outcomeBtn("HOME", "1", fixture.homeTeam.name)}
-        {outcomeBtn("DRAW", "X", "Draw")}
-        {outcomeBtn("AWAY", "2", fixture.awayTeam.name)}
+        {outcomeBtn("HOME", fixture.homeTeam.name, "Win")}
+        {outcomeBtn("DRAW", "Draw")}
+        {outcomeBtn("AWAY", fixture.awayTeam.name, "Win")}
       </div>
 
+      <p className="text-center text-[11px] font-medium uppercase tracking-wide text-slate-400">
+        Predicted score — goals
+      </p>
       <div className="flex items-center justify-center gap-4">
         <Stepper
           label={fixture.homeTeam.name}
@@ -214,8 +220,8 @@ export function BetForm({ fixture, onSaved }: Props) {
           data-testid="contradiction-warning"
           className="rounded-lg bg-amber-50 px-3 py-2 text-center text-xs text-amber-700"
         >
-          ⚠️ Your score {predHome}–{predAway} doesn&apos;t match your 1/X/2 pick. That&apos;s
-          allowed — they score separately.
+          ⚠️ Your score {predHome}–{predAway} doesn&apos;t match your selected result.
+          That&apos;s allowed — they score separately.
         </p>
       )}
 
