@@ -27,18 +27,33 @@ export function scoreBet(
   return pts;
 }
 
-// Confirm a result and (re)score every bet on the fixture in one transaction.
-// Clears needsManualResult — entering a 90' score resolves any ET/penalty flag.
+// Confirm a result and (re)score every bet on the fixture. Idempotent; clears
+// needsManualResult (entering a 90' score resolves any ET/penalty flag).
+//
+// Turso note: do NOT update bets one-by-one inside an interactive transaction — on a
+// remote DB each write is a network round-trip, and a per-bet loop blows past Prisma's
+// 5s interactive-transaction timeout (the cause of the prod sync 500). Instead we group
+// bets by points value into a handful of updateMany calls and run them with the fixture
+// update as a single batched array transaction. Badges are awarded afterwards, outside
+// the transaction (their writes are idempotent via the UserBadge unique constraint).
 export async function scoreFixture(
   fixtureId: number,
   homeScore: number,
   awayScore: number,
 ): Promise<{ fixtureId: number; scoredBets: number }> {
-  // Read window settings before the tx so badge awarding (Early Bird) doesn't open a
-  // second connection mid-transaction.
   const { openBeforeHours } = await getWindowSettings();
-  return prisma.$transaction(async (tx) => {
-    const fixture = await tx.fixture.update({
+  const bets = await prisma.bet.findMany({ where: { fixtureId } });
+
+  const idsByPoints = new Map<number, string[]>();
+  for (const bet of bets) {
+    const points = scoreBet(bet, { homeScore, awayScore });
+    const ids = idsByPoints.get(points);
+    if (ids) ids.push(bet.id);
+    else idsByPoints.set(points, [bet.id]);
+  }
+
+  await prisma.$transaction([
+    prisma.fixture.update({
       where: { id: fixtureId },
       data: {
         homeScore,
@@ -47,15 +62,14 @@ export async function scoreFixture(
         resultSetAt: new Date(),
         needsManualResult: false,
       },
-    });
-    const bets = await tx.bet.findMany({ where: { fixtureId } });
-    for (const bet of bets) {
-      const points = scoreBet(bet, fixture);
-      await tx.bet.update({ where: { id: bet.id }, data: { points } });
-    }
-    await awardMatchBadges(tx, fixtureId, openBeforeHours);
-    return { fixtureId, scoredBets: bets.length };
-  });
+    }),
+    ...[...idsByPoints].map(([points, ids]) =>
+      prisma.bet.updateMany({ where: { id: { in: ids } }, data: { points } }),
+    ),
+  ]);
+
+  await awardMatchBadges(prisma, fixtureId, openBeforeHours);
+  return { fixtureId, scoredBets: bets.length };
 }
 
 export type FeedDuration = "REGULAR" | "EXTRA_TIME" | "PENALTY_SHOOTOUT";
@@ -85,14 +99,21 @@ export async function applyFeedResult(
 }
 
 // Award champion points: 6 to picks matching teamId, 0 to the rest. Idempotent.
+// Batched (see scoreFixture) to avoid per-row writes inside a timed transaction on Turso.
 export async function scoreWinnerPicks(teamId: number): Promise<{ scored: number }> {
-  return prisma.$transaction(async (tx) => {
-    const picks = await tx.winnerPick.findMany();
-    for (const pick of picks) {
-      const points = pick.teamId === teamId ? POINTS_CHAMPION : 0;
-      await tx.winnerPick.update({ where: { id: pick.id }, data: { points } });
-    }
-    await awardProphet(tx, teamId);
-    return { scored: picks.length };
-  });
+  const picks = await prisma.winnerPick.findMany({ select: { id: true, teamId: true } });
+  const winnerIds = picks.filter((p) => p.teamId === teamId).map((p) => p.id);
+  const otherIds = picks.filter((p) => p.teamId !== teamId).map((p) => p.id);
+
+  await prisma.$transaction([
+    ...(winnerIds.length
+      ? [prisma.winnerPick.updateMany({ where: { id: { in: winnerIds } }, data: { points: POINTS_CHAMPION } })]
+      : []),
+    ...(otherIds.length
+      ? [prisma.winnerPick.updateMany({ where: { id: { in: otherIds } }, data: { points: 0 } })]
+      : []),
+  ]);
+
+  await awardProphet(prisma, teamId);
+  return { scored: picks.length };
 }
