@@ -19,8 +19,10 @@ export function FixtureCard({ fixture }: { fixture: FixtureDTO }) {
   const [myBet, setMyBet] = useState<MyBetDTO | null>(fixture.myBet);
   const firedConfetti = useRef(false);
   const [now, setNow] = useState(() => Date.now());
+  const [flipped, setFlipped] = useState(false);
 
   const finished = fixture.status === "FINISHED";
+  const dice = fixture.dicePick;
 
   // Tick once a second so the "closing soon" alert + timer stay live.
   useEffect(() => {
@@ -49,8 +51,23 @@ export function FixtureCard({ fixture }: { fixture: FixtureDTO }) {
 
   const fx = { ...fixture, myBet };
 
+  const diceVerdict = dice
+    ? dice.outcome === "HOME"
+      ? `Dice backs ${fixture.homeTeam.name} to win`
+      : dice.outcome === "AWAY"
+        ? `Dice backs ${fixture.awayTeam.name} to win`
+        : "Dice predicts a draw"
+    : null;
+
   return (
-    <article className="card p-4">
+    <div className="[perspective:1400px]">
+      <div
+        className={
+          "relative transition-transform duration-500 [transform-style:preserve-3d] " +
+          (flipped ? "[transform:rotateY(180deg)]" : "")
+        }
+      >
+        <article className="card p-4 [backface-visibility:hidden]">
       {closingSoon && (
         <div
           data-testid={`closing-alert-${fixture.id}`}
@@ -69,7 +86,28 @@ export function FixtureCard({ fixture }: { fixture: FixtureDTO }) {
       )}
       <div className="mb-2 flex items-center justify-between text-xs text-slate-400">
         <span>{fixture.round ?? "Fixture"}</span>
-        <span>{fmtKickoff(fixture.kickoffAt)}</span>
+        <span className="flex items-center gap-2">
+          {fmtKickoff(fixture.kickoffAt)}
+          {dice && (
+            <span className="group relative">
+              <button
+                type="button"
+                data-testid={`dice-peek-${fixture.id}`}
+                aria-label="See Dice's prediction"
+                onClick={() => setFlipped(true)}
+                className="grid h-6 w-6 place-items-center rounded-full bg-ink text-[12px] leading-none shadow-sm ring-1 ring-black/10 transition hover:scale-110"
+              >
+                🎲
+              </button>
+              <span
+                role="tooltip"
+                className="pointer-events-none absolute right-0 top-8 z-20 whitespace-nowrap rounded-md bg-ink px-2 py-1 text-[10px] font-medium normal-case tracking-normal text-white opacity-0 shadow-lg transition-opacity duration-150 group-hover:opacity-100"
+              >
+                See Dice&apos;s prediction
+              </span>
+            </span>
+          )}
+        </span>
       </div>
 
       <div className="flex items-center justify-between gap-2">
@@ -142,7 +180,68 @@ export function FixtureCard({ fixture }: { fixture: FixtureDTO }) {
           {fixture.status === "LIVE" ? "🔴 Live — betting locked" : fixture.status}
         </p>
       )}
-    </article>
+        </article>
+
+        {dice && (
+          <article
+            data-testid={`dice-card-${fixture.id}`}
+            className="card absolute inset-0 flex flex-col p-4 [backface-visibility:hidden] [transform:rotateY(180deg)]"
+          >
+            <div className="mb-2 flex items-center justify-between text-xs text-slate-400">
+              <span className="font-semibold text-slate-500">🎲 Dice predicts</span>
+              <button
+                type="button"
+                aria-label="Close Dice prediction"
+                onClick={() => setFlipped(false)}
+                className="rounded-full px-2 py-0.5 text-[11px] font-medium text-slate-500 transition hover:bg-slate-100"
+              >
+                ✕ Back
+              </button>
+            </div>
+            <div className="flex flex-1 flex-col items-center justify-center gap-4 py-2">
+              <div className="flex w-full items-center justify-center gap-3">
+                <div className="flex flex-1 flex-col items-center gap-2">
+                  <BigFlag team={fixture.homeTeam} />
+                  <span className="text-center text-sm font-bold leading-tight">
+                    {fixture.homeTeam.name}
+                  </span>
+                </div>
+                <span className="rounded-xl bg-ink px-4 py-2 text-2xl font-extrabold tabular-nums text-white shadow-sm">
+                  {dice.predHome}–{dice.predAway}
+                </span>
+                <div className="flex flex-1 flex-col items-center gap-2">
+                  <BigFlag team={fixture.awayTeam} />
+                  <span className="text-center text-sm font-bold leading-tight">
+                    {fixture.awayTeam.name}
+                  </span>
+                </div>
+              </div>
+              <p className="text-xs font-medium text-slate-500">{diceVerdict}</p>
+            </div>
+          </article>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Bigger flag for the flipped (Dice prediction) face: rounded + bordered chip that hugs
+// the flag (object-cover) rather than a letterboxed square.
+function BigFlag({ team }: { team: { name: string; logoUrl: string | null } }) {
+  if (team.logoUrl) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={team.logoUrl}
+        alt=""
+        className="h-12 w-[4.5rem] rounded-lg border border-slate-200 object-cover shadow-sm"
+      />
+    );
+  }
+  return (
+    <span className="grid h-12 w-[4.5rem] place-items-center rounded-lg border border-slate-200 bg-slate-100 text-sm font-bold text-slate-500">
+      {team.name.slice(0, 2).toUpperCase()}
+    </span>
   );
 }
 

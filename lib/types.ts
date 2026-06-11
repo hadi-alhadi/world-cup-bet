@@ -51,6 +51,14 @@ export interface FixtureDTO {
   // Community pick distribution — only revealed once the betting window has CLOSED
   // (null while open, so it can't influence live bets). Counts of each outcome.
   communityPicks: CommunityPicks | null;
+  // The Dice bot's prediction for this fixture (null if Dice hasn't bet on it).
+  dicePick: DicePick | null;
+}
+
+export interface DicePick {
+  outcome: Outcome;
+  predHome: number;
+  predAway: number;
 }
 
 export interface CommunityPicks {

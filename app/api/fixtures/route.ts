@@ -7,7 +7,8 @@ import { handle, requireUser } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 import { getWindowSettings } from "@/lib/settings";
 import { windowState } from "@/lib/betting-window";
-import type { CommunityPicks, FixtureDTO, FixtureStatus, Outcome } from "@/lib/types";
+import { DICE_EMAIL } from "@/lib/dice-bot";
+import type { CommunityPicks, DicePick, FixtureDTO, FixtureStatus, Outcome } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
@@ -40,6 +41,27 @@ export async function GET(req: NextRequest) {
     ]);
 
     const now = new Date();
+
+    // Dice bot's prediction per fixture (for the card-flip "peek"). One lookup of the
+    // bot user + its bets, indexed by fixtureId.
+    const diceUser = await prisma.user.findUnique({
+      where: { email: DICE_EMAIL },
+      select: { id: true },
+    });
+    const diceByFixture = new Map<number, DicePick>();
+    if (diceUser) {
+      const diceBets = await prisma.bet.findMany({
+        where: { userId: diceUser.id, fixtureId: { in: fixtures.map((f) => f.id) } },
+        select: { fixtureId: true, outcome: true, predHome: true, predAway: true },
+      });
+      for (const b of diceBets) {
+        diceByFixture.set(b.fixtureId, {
+          outcome: b.outcome as Outcome,
+          predHome: b.predHome,
+          predAway: b.predAway,
+        });
+      }
+    }
 
     // Community picks reveal: only once the window is no longer OPEN and not still
     // waiting to open — i.e. CLOSED, LIVE, or FINISHED. Keeping it hidden while OPEN
@@ -88,6 +110,7 @@ export async function GET(req: NextRequest) {
         resultDuration: f.resultDuration,
         window: windows.get(f.id)!,
         communityPicks: picksByFixture.get(f.id) ?? null,
+        dicePick: diceByFixture.get(f.id) ?? null,
         myBet: bet
           ? {
               outcome: bet.outcome as Outcome,
