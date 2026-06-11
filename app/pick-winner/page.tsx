@@ -50,6 +50,8 @@ export default function PickWinnerPage() {
       toast("Champion locked in! 🏆", "success");
       setConfirming(null);
       await meApi.reload();
+      // Tell the layout's WinnerPickBanner to re-check and hide itself.
+      window.dispatchEvent(new Event("winner-pick-updated"));
     } catch {
       toast("Network error — please retry.", "error");
     } finally {

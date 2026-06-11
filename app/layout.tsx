@@ -5,6 +5,7 @@ import { auth } from "@/lib/auth";
 import { Providers } from "@/components/providers";
 import { ToastProvider } from "@/components/Toast";
 import { Nav } from "@/components/Nav";
+import { WinnerPickBanner } from "@/components/WinnerPickBanner";
 
 export const metadata: Metadata = {
   title: "Privilee Bet",
@@ -31,6 +32,7 @@ export default async function RootLayout({
       <body>
         <Providers session={session}>
           <ToastProvider>
+            {navUser && <WinnerPickBanner />}
             <Nav user={navUser} />
             <main className="mx-auto max-w-5xl px-4 py-6">{children}</main>
           </ToastProvider>
