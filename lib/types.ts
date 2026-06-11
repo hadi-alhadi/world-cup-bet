@@ -71,6 +71,7 @@ export interface LeaderboardRow {
   streak: number; // current consecutive correct (>=1 pt) by kickoff order
   title: string; // pundit title by rank percentile
   badges: string[]; // earned badge keys (see lib/badges.ts)
+  pickedTeam: TeamDTO | null; // the user's champion pick, shown next to their avatar
   isMe?: boolean;
 }
 

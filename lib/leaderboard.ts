@@ -14,6 +14,7 @@ interface UserAgg {
   total: number;
   avgUpdatedAt: number; // ms epoch; Infinity when the user has no bets
   streak: number;
+  pickedTeam: { id: number; name: string; logoUrl: string | null } | null;
 }
 
 export async function getLeaderboard(meId?: string): Promise<LeaderboardRow[]> {
@@ -24,7 +25,9 @@ export async function getLeaderboard(meId?: string): Promise<LeaderboardRow[]> {
       id: true,
       name: true,
       image: true,
-      winnerPick: { select: { points: true } },
+      winnerPick: {
+        select: { points: true, team: { select: { id: true, name: true, logoUrl: true } } },
+      },
       bets: {
         select: {
           points: true,
@@ -67,6 +70,7 @@ export async function getLeaderboard(meId?: string): Promise<LeaderboardRow[]> {
       total: matchPoints + winnerPoints,
       avgUpdatedAt,
       streak,
+      pickedTeam: u.winnerPick?.team ?? null,
     };
   });
 
@@ -94,6 +98,7 @@ export async function getLeaderboard(meId?: string): Promise<LeaderboardRow[]> {
       streak: a.streak,
       title: punditTitle(rank, totalUsers),
       badges: badgeMap.get(a.userId) ?? [],
+      pickedTeam: a.pickedTeam,
       ...(meId ? { isMe: a.userId === meId } : {}),
     };
   });

@@ -1,19 +1,46 @@
 "use client";
 
-import type { LeaderboardRow } from "@/lib/types";
+import type { LeaderboardRow, TeamDTO } from "@/lib/types";
 import { Spinner, EmptyState, ErrorState, useApi } from "@/components/state";
 import { BADGE_BY_KEY } from "@/lib/badge-catalog";
 
-function Avatar({ name, image }: { name: string | null; image: string | null }) {
-  if (image) {
-    return (
-      // eslint-disable-next-line @next/next/no-img-element
-      <img src={image} alt="" className="h-9 w-9 rounded-full border border-slate-200 object-cover" />
-    );
-  }
+// Avatar with the user's champion pick as a small badge on the bottom-right corner.
+function Avatar({
+  name,
+  image,
+  pickedTeam,
+}: {
+  name: string | null;
+  image: string | null;
+  pickedTeam: TeamDTO | null;
+}) {
   return (
-    <span className="grid h-9 w-9 place-items-center rounded-full bg-slate-200 text-sm font-bold text-slate-600">
-      {(name ?? "?").slice(0, 1).toUpperCase()}
+    <span className="relative inline-block shrink-0">
+      {image ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={image} alt="" className="h-9 w-9 rounded-full border border-slate-200 object-cover" />
+      ) : (
+        <span className="grid h-9 w-9 place-items-center rounded-full bg-slate-200 text-sm font-bold text-slate-600">
+          {(name ?? "?").slice(0, 1).toUpperCase()}
+        </span>
+      )}
+      {pickedTeam &&
+        (pickedTeam.logoUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={pickedTeam.logoUrl}
+            alt=""
+            title={`Champion pick: ${pickedTeam.name}`}
+            className="absolute -bottom-1 -right-1 h-4 w-4 rounded-full border border-white bg-white object-cover shadow-sm"
+          />
+        ) : (
+          <span
+            title={`Champion pick: ${pickedTeam.name}`}
+            className="absolute -bottom-1 -right-1 grid h-4 w-4 place-items-center rounded-full border border-white bg-slate-300 text-[8px] font-bold text-slate-700 shadow-sm"
+          >
+            {pickedTeam.name.slice(0, 1)}
+          </span>
+        ))}
     </span>
   );
 }
@@ -69,7 +96,7 @@ export default function LeaderboardPage() {
                 </span>
 
                 <div className="flex min-w-0 flex-1 items-center gap-2">
-                  <Avatar name={row.name} image={row.image} />
+                  <Avatar name={row.name} image={row.image} pickedTeam={row.pickedTeam} />
                   <div className="min-w-0">
                     <div className="flex items-center gap-1.5">
                       <span className="truncate text-sm font-semibold">
