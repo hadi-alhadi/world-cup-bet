@@ -26,16 +26,24 @@ export default function GamesPage() {
     [data],
   );
 
+  // Keep the default "Upcoming" view clean & short: hide games you can't bet on right now
+  // (live, closed, not-yet-open, postponed). "All" still shows everything; "Finished" the
+  // results. Bettable games (window open) always show.
+  const visible = useMemo(() => {
+    const all = data ?? [];
+    return filter === "upcoming" ? all.filter((f) => f.window.canBet) : all;
+  }, [data, filter]);
+
   // Group fixtures by local calendar day, preserving server (kickoff asc) order.
   const groups = useMemo(() => {
     const map = new Map<string, FixtureDTO[]>();
-    for (const f of data ?? []) {
+    for (const f of visible) {
       const k = dayKey(f.kickoffAt);
       if (!map.has(k)) map.set(k, []);
       map.get(k)!.push(f);
     }
     return [...map.values()];
-  }, [data]);
+  }, [visible]);
 
   return (
     <div className="space-y-5">
@@ -78,13 +86,15 @@ export default function GamesPage() {
 
       {loading && <Spinner label="Loading fixtures…" />}
       {error && !loading && <ErrorState message={error} onRetry={reload} />}
-      {!loading && !error && (data?.length ?? 0) === 0 && (
+      {!loading && !error && visible.length === 0 && (
         <EmptyState
-          title="No fixtures here yet"
+          title={filter === "upcoming" ? "No matches open for betting" : "No fixtures here yet"}
           hint={
             filter === "finished"
               ? "No matches have finished yet."
-              : "Check back once fixtures are synced."
+              : filter === "upcoming"
+                ? "Nothing's open right now — check the All tab for the full schedule."
+                : "Check back once fixtures are synced."
           }
         />
       )}
