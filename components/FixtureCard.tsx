@@ -18,8 +18,21 @@ export function FixtureCard({ fixture }: { fixture: FixtureDTO }) {
   // Local copy of the user's bet so saves reflect immediately without a full refetch.
   const [myBet, setMyBet] = useState<MyBetDTO | null>(fixture.myBet);
   const firedConfetti = useRef(false);
+  const [now, setNow] = useState(() => Date.now());
 
   const finished = fixture.status === "FINISHED";
+
+  // Tick once a second so the "closing soon" alert + timer stay live.
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  // Urgent alert: window still open, no bet placed, and less than 5h to close.
+  const FIVE_HOURS = 5 * 60 * 60 * 1000;
+  const closesInMs = new Date(fixture.window.closesAt).getTime() - now;
+  const closingSoon =
+    !finished && fixture.window.canBet && !myBet && closesInMs > 0 && closesInMs <= FIVE_HOURS;
 
   // Exact-score celebration (Tier 1): fire once when a finished bet earned 3 points.
   useEffect(() => {
@@ -38,6 +51,22 @@ export function FixtureCard({ fixture }: { fixture: FixtureDTO }) {
 
   return (
     <article className="card p-4">
+      {closingSoon && (
+        <div
+          data-testid={`closing-alert-${fixture.id}`}
+          role="alert"
+          className="mb-3 flex items-center justify-center gap-2 rounded-lg bg-red-600 px-3 py-2 text-xs font-extrabold uppercase tracking-wide text-white shadow-md animate-urgent-pulse motion-reduce:animate-none"
+        >
+          {/* Pinging live dot for urgency (animation only — no harsh blink). */}
+          <span className="relative flex h-2.5 w-2.5" aria-hidden>
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-white opacity-75 motion-reduce:hidden" />
+            <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-white" />
+          </span>
+          <span>
+            Closes in <Countdown to={fixture.window.closesAt} /> — bet now!
+          </span>
+        </div>
+      )}
       <div className="mb-2 flex items-center justify-between text-xs text-slate-400">
         <span>{fixture.round ?? "Fixture"}</span>
         <span>{fmtKickoff(fixture.kickoffAt)}</span>
@@ -78,8 +107,9 @@ export function FixtureCard({ fixture }: { fixture: FixtureDTO }) {
         />
       )}
 
-      {/* Window countdown (only while still bettable / upcoming). */}
-      {!finished && fixture.window.canBet && (
+      {/* Window countdown (only while still bettable / upcoming; the red alert above
+          replaces it once a match is closing soon with no bet). */}
+      {!finished && fixture.window.canBet && !closingSoon && (
         <p className="mt-2 text-center text-xs text-slate-500">
           <Countdown
             to={fixture.window.closesAt}
