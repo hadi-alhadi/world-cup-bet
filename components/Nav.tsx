@@ -18,7 +18,6 @@ const LINKS = [
   { href: "/pick-winner", label: "Pick Winner" },
   { href: "/leaderboard", label: "Leaderboard" },
   { href: "/badges", label: "Badges" },
-  { href: "/matchdays", label: "Matchdays" },
 ];
 
 export function Nav({ user }: { user: NavUser | null }) {

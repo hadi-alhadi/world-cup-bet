@@ -84,19 +84,23 @@ export interface LeaderboardRow {
   isMe?: boolean;
 }
 
-// Weekly matchday winner (Tier 3): per-round mini-leaderboard.
-export interface MatchdayStanding {
+// Per-round mini-leaderboard row (Leaderboard round tabs, Tier 3).
+export interface RoundStanding {
   userId: string;
   name: string | null;
   image: string | null;
   points: number;
-  rank: number;
+  rank: number; // position within the round (top2/bottom2 rank humans; dice ranks among all)
   isMe?: boolean;
 }
 
-export interface Matchday {
-  round: string; // e.g. "Group A - 1", "Quarter-final 1"
+// One round tab's condensed standings, shown on the Leaderboard once the round has
+// started (its first match has kicked off). Top 2 and bottom 2 are humans only; Dice
+// (the bot) is surfaced on its own line.
+export interface RoundStandings {
+  roundKey: string; // e.g. "Group Stage · Round 1", "Quarter-finals"
   finished: boolean; // every fixture in the round is FINISHED
-  winner: MatchdayStanding | null; // top standing once any points exist
-  standings: MatchdayStanding[];
+  top2: RoundStanding[]; // up to 2 highest-scoring humans (points > 0)
+  bottom2: RoundStanding[]; // up to 2 lowest-scoring humans (excludes anyone in top2)
+  dice: RoundStanding | null; // the Dice bot's standing this round, or null if it didn't bet
 }

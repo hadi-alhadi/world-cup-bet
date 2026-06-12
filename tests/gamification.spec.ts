@@ -34,14 +34,36 @@ test.describe("gamification", () => {
     expect(finished!.communityPicks).not.toBeNull(); // revealed after close
   });
 
-  test("matchdays returns per-round standings for seeded finished rounds", async ({ page }) => {
-    await login(page, freshUserEmail("matchdays"));
-    const res = await page.request.get("/api/matchdays");
+  test("leaderboard round tabs: only started rounds, with top2/bottom2/dice", async ({ page }) => {
+    await login(page, freshUserEmail("rounds"));
+    const res = await page.request.get("/api/leaderboard/rounds");
     expect(res.ok()).toBeTruthy();
-    const rounds = (await res.json()) as Array<{ round: string; standings: unknown[] }>;
+    const rounds = (await res.json()) as Array<{
+      roundKey: string;
+      finished: boolean;
+      top2: Array<{ userId: string }>;
+      bottom2: Array<{ userId: string }>;
+      dice: { userId: string } | null;
+    }>;
     expect(Array.isArray(rounds)).toBeTruthy();
-    expect(rounds.length).toBeGreaterThan(0); // seeded finished fixtures form rounds
-    expect(rounds[0]).toHaveProperty("round");
-    expect(rounds[0]).toHaveProperty("standings");
+    // Seed: only "Group Stage · Round 1" has started (Round 2 / Quarter-finals are future).
+    expect(rounds.length).toBeGreaterThan(0);
+    expect(rounds.every((r) => r.roundKey.startsWith("Group Stage · Round 1"))).toBeTruthy();
+    for (const r of rounds) {
+      expect(r.top2.length).toBeLessThanOrEqual(2);
+      expect(r.bottom2.length).toBeLessThanOrEqual(2);
+      // Top and bottom never name the same player.
+      const top = new Set(r.top2.map((s) => s.userId));
+      expect(r.bottom2.some((s) => top.has(s.userId))).toBeFalsy();
+    }
+
+    // Tab gating in the UI: Overall + one tab per started round.
+    await page.goto("/leaderboard");
+    await expect(page.getByTestId("lb-tab-overall")).toBeVisible();
+    await expect(page.getByTestId("lb-tab-group-stage-round-1")).toBeVisible();
+    // A future round must NOT have a tab.
+    await expect(page.getByTestId("lb-tab-group-stage-round-2")).toHaveCount(0);
+    await page.getByTestId("lb-tab-group-stage-round-1").click();
+    await expect(page.getByTestId("lb-round-group-stage-round-1")).toBeVisible();
   });
 });
