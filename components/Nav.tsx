@@ -10,12 +10,13 @@ interface NavUser {
   email?: string | null;
   image?: string | null;
   role: "USER" | "ADMIN";
+  /** The user's champion pick, shown as a chip tucked behind the avatar. */
+  pickedTeam?: { name: string; logoUrl: string | null } | null;
 }
 
 const LINKS = [
   { href: "/games", label: "Games" },
   { href: "/my-bets", label: "My Bets" },
-  { href: "/pick-winner", label: "Pick Winner" },
   { href: "/leaderboard", label: "Leaderboard" },
   { href: "/badges", label: "Badges" },
 ];
@@ -64,20 +65,63 @@ export function Nav({ user }: { user: NavUser | null }) {
         </ul>
 
         <div className="ml-auto flex items-center gap-3">
-          <div className="hidden items-center gap-2 sm:flex">
-            {user.image ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={user.image}
-                alt=""
-                className="h-8 w-8 rounded-full border border-slate-200"
-              />
-            ) : (
-              <span className="grid h-8 w-8 place-items-center rounded-full bg-slate-200 text-xs font-bold text-slate-600">
-                {(user.name ?? user.email ?? "?").slice(0, 1).toUpperCase()}
-              </span>
-            )}
-            <span className="max-w-[10rem] truncate text-sm text-slate-700">
+          <div className="flex items-center gap-2">
+            {/* Avatar with the champion pick as a small badge on the bottom-left corner.
+                The badge is the entry point to /pick-winner (team logo when picked, an
+                inviting trophy when not). */}
+            <span className="relative inline-block shrink-0">
+              {user.image ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={user.image}
+                  alt=""
+                  className="h-8 w-8 rounded-full border border-slate-200 object-cover"
+                />
+              ) : (
+                <span className="grid h-8 w-8 place-items-center rounded-full bg-slate-200 text-xs font-bold text-slate-600">
+                  {(user.name ?? user.email ?? "?").slice(0, 1).toUpperCase()}
+                </span>
+              )}
+              <Link
+                href="/pick-winner"
+                title={
+                  user.pickedTeam
+                    ? `Your champion: ${user.pickedTeam.name}`
+                    : "Pick your champion"
+                }
+                aria-label={
+                  user.pickedTeam
+                    ? `Your champion: ${user.pickedTeam.name}. Change or view pick.`
+                    : "Pick your champion"
+                }
+                className={
+                  "absolute -bottom-1 -left-1 grid h-4 w-4 place-items-center overflow-hidden rounded-full border border-white shadow-sm transition hover:scale-110 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand " +
+                  (user.pickedTeam
+                    ? "bg-white"
+                    : "bg-amber-100 text-amber-600 hover:bg-amber-200")
+                }
+              >
+                {user.pickedTeam ? (
+                  user.pickedTeam.logoUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={user.pickedTeam.logoUrl}
+                      alt=""
+                      className="h-4 w-4 object-cover"
+                    />
+                  ) : (
+                    <span className="text-[8px] font-bold text-slate-700">
+                      {user.pickedTeam.name.slice(0, 1)}
+                    </span>
+                  )
+                ) : (
+                  <span aria-hidden className="text-[9px] leading-none">
+                    🏆
+                  </span>
+                )}
+              </Link>
+            </span>
+            <span className="hidden max-w-[10rem] truncate text-sm text-slate-700 sm:inline">
               {user.name ?? user.email}
             </span>
           </div>
