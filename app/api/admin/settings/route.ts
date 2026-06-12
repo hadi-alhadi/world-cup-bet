@@ -11,15 +11,19 @@ export const runtime = "nodejs";
 
 // Returns the four configurable settings as their raw stored/default values (or null).
 async function currentSettings() {
-  const [betOpenBeforeHours, betCloseBeforeHours, winnerPickDeadline, tournamentWinnerTeamId] =
-    await Promise.all([
-      getSetting(SETTING_KEYS.betOpenBeforeHours),
-      getSetting(SETTING_KEYS.betCloseBeforeHours),
-      getSetting(SETTING_KEYS.winnerPickDeadline),
-      getSetting(SETTING_KEYS.tournamentWinnerTeamId),
-    ]);
+  const [
+    betCloseBeforeHours,
+    roundOpenBeforeHours,
+    winnerPickDeadline,
+    tournamentWinnerTeamId,
+  ] = await Promise.all([
+    getSetting(SETTING_KEYS.betCloseBeforeHours),
+    getSetting(SETTING_KEYS.roundOpenBeforeHours),
+    getSetting(SETTING_KEYS.winnerPickDeadline),
+    getSetting(SETTING_KEYS.tournamentWinnerTeamId),
+  ]);
   return {
-    bet_open_before_hours: betOpenBeforeHours,
+    round_open_before_hours: roundOpenBeforeHours,
     bet_close_before_hours: betCloseBeforeHours,
     winner_pick_deadline: winnerPickDeadline,
     tournament_winner_team_id: tournamentWinnerTeamId,
@@ -34,7 +38,7 @@ export async function GET() {
 }
 
 const PutBody = z.object({
-  betOpenBeforeHours: z.number().int().positive().optional(),
+  roundOpenBeforeHours: z.number().int().positive().optional(),
   betCloseBeforeHours: z.number().int().positive().optional(),
   // ISO datetime string; validate parseability so we never persist garbage.
   winnerPickDeadline: z.string().datetime().optional(),
@@ -46,8 +50,8 @@ export async function PUT(req: Request) {
     const body = PutBody.parse(await req.json());
 
     // Persist only the keys the client actually provided.
-    if (body.betOpenBeforeHours !== undefined) {
-      await setSetting(SETTING_KEYS.betOpenBeforeHours, String(body.betOpenBeforeHours));
+    if (body.roundOpenBeforeHours !== undefined) {
+      await setSetting(SETTING_KEYS.roundOpenBeforeHours, String(body.roundOpenBeforeHours));
     }
     if (body.betCloseBeforeHours !== undefined) {
       await setSetting(SETTING_KEYS.betCloseBeforeHours, String(body.betCloseBeforeHours));

@@ -77,6 +77,7 @@ async function main() {
       awayTeamId: f.awayTeamId,
       kickoffAt: f.kickoffAt,
       round: f.round,
+      roundKey: f.roundKey,
       status: f.status,
       homeScore: f.homeScore ?? null,
       awayScore: f.awayScore ?? null,

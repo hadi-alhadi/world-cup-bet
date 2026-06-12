@@ -5,7 +5,7 @@ import { z } from "zod";
 import { handle, requireUser, HttpError } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 import { getWindowSettings } from "@/lib/settings";
-import { canBet } from "@/lib/betting-window";
+import { canBet, getRoundOpens } from "@/lib/betting-window";
 
 export const dynamic = "force-dynamic";
 
@@ -42,7 +42,10 @@ export async function POST(req: Request) {
     if (!fixture) throw new HttpError("NOT_FOUND", "Fixture not found", 404);
 
     // Window is server-authoritative; status (LIVE/FINISHED/etc.) is handled inside canBet.
-    if (!canBet(new Date(), fixture, settings)) {
+    // Open is round-based: look up when this fixture's round opens.
+    const roundOpens = await getRoundOpens(settings.roundOpenBeforeHours);
+    const roundOpensAt = fixture.roundKey ? roundOpens.get(fixture.roundKey) : null;
+    if (!canBet(new Date(), fixture, settings, roundOpensAt)) {
       throw new HttpError("BET_WINDOW_CLOSED", "Betting window is closed", 403);
     }
 

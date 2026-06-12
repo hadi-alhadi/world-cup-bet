@@ -3,7 +3,7 @@
 // the leaderboard and gets scored automatically by scoreFixture(). Reuses canBet() so it
 // can only bet on genuinely open fixtures (server-authoritative).
 import { prisma } from "@/lib/prisma";
-import { canBet } from "@/lib/betting-window";
+import { canBet, getRoundOpens } from "@/lib/betting-window";
 import { getWindowSettings, getWinnerPickDeadline } from "@/lib/settings";
 import type { Outcome } from "@/lib/types";
 
@@ -62,11 +62,12 @@ export async function runDice(): Promise<DiceResult> {
     prisma.winnerPick.findUnique({ where: { userId: user.id } }),
   ]);
   const alreadyBet = new Set(existingBets.map((b) => b.fixtureId));
+  const roundOpens = await getRoundOpens(settings.roundOpenBeforeHours);
 
   let betsPlaced = 0;
   for (const fx of fixtures) {
     if (alreadyBet.has(fx.id)) continue;
-    if (!canBet(now, fx, settings)) continue;
+    if (!canBet(now, fx, settings, fx.roundKey ? roundOpens.get(fx.roundKey) : null)) continue;
     const predHome = rollGoals();
     const predAway = rollGoals();
     await prisma.bet.upsert({

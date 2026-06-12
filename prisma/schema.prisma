@@ -58,7 +58,8 @@ model Fixture {
   homeTeam    Team          @relation("home", fields: [homeTeamId], references: [id])
   awayTeam    Team          @relation("away", fields: [awayTeamId], references: [id])
   kickoffAt   DateTime // UTC
-  round       String?
+  round       String? // display label (group, e.g. "Group A", or stage name)
+  roundKey    String? // betting round bucket, e.g. "Group Stage · Round 1", "Round of 16"
   status      String        @default("SCHEDULED")
   homeScore   Int?
   awayScore   Int?

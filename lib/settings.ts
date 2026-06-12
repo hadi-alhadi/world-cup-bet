@@ -4,13 +4,15 @@ import { prisma } from "@/lib/prisma";
 export const SETTING_KEYS = {
   betOpenBeforeHours: "bet_open_before_hours",
   betCloseBeforeHours: "bet_close_before_hours",
+  roundOpenBeforeHours: "round_open_before_hours",
   winnerPickDeadline: "winner_pick_deadline",
   tournamentWinnerTeamId: "tournament_winner_team_id",
 } as const;
 
 export const SETTING_DEFAULTS: Record<string, string> = {
-  [SETTING_KEYS.betOpenBeforeHours]: "168", // 7 days
+  [SETTING_KEYS.betOpenBeforeHours]: "168", // 7 days (fallback for fixtures with no round)
   [SETTING_KEYS.betCloseBeforeHours]: "2",
+  [SETTING_KEYS.roundOpenBeforeHours]: "48", // 2 days before the round's first match
   // winner_pick_deadline & tournament_winner_team_id have no default (unset).
 };
 
@@ -36,17 +38,19 @@ export async function setSetting(key: string, value: string): Promise<void> {
 }
 
 export interface WindowSettings {
-  openBeforeHours: number;
+  openBeforeHours: number; // fallback per-match open (fixtures with no round)
   closeBeforeHours: number;
+  roundOpenBeforeHours: number; // whole round opens this many hours before its first match
 }
 
 // Read settings fresh each call so changes take effect without restart (§13).
 export async function getWindowSettings(): Promise<WindowSettings> {
-  const [openBeforeHours, closeBeforeHours] = await Promise.all([
+  const [openBeforeHours, closeBeforeHours, roundOpenBeforeHours] = await Promise.all([
     getSettingNumber(SETTING_KEYS.betOpenBeforeHours, 168),
     getSettingNumber(SETTING_KEYS.betCloseBeforeHours, 2),
+    getSettingNumber(SETTING_KEYS.roundOpenBeforeHours, 48),
   ]);
-  return { openBeforeHours, closeBeforeHours };
+  return { openBeforeHours, closeBeforeHours, roundOpenBeforeHours };
 }
 
 export async function getWinnerPickDeadline(): Promise<Date | null> {

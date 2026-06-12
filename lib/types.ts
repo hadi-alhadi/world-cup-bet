@@ -39,6 +39,7 @@ export interface FixtureDTO {
   awayTeam: TeamDTO;
   kickoffAt: string; // ISO UTC
   round: string | null;
+  roundKey: string | null; // betting round bucket (whole round opens together)
   status: FixtureStatus;
   homeScore: number | null;
   awayScore: number | null;

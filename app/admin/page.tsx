@@ -8,7 +8,7 @@ import { Spinner, ErrorState, useApi } from "@/components/state";
 import { ResultsPanel } from "@/components/admin/ResultsPanel";
 
 interface SettingsDTO {
-  bet_open_before_hours: string | null;
+  round_open_before_hours: string | null;
   bet_close_before_hours: string | null;
   winner_pick_deadline: string | null;
   tournament_winner_team_id: string | null;
@@ -34,7 +34,7 @@ function SettingsPanel() {
 
   useEffect(() => {
     if (data) {
-      setOpenH(data.bet_open_before_hours ?? "168");
+      setOpenH(data.round_open_before_hours ?? "48");
       setCloseH(data.bet_close_before_hours ?? "2");
       setDeadline(isoToLocalInput(data.winner_pick_deadline));
     }
@@ -45,7 +45,7 @@ function SettingsPanel() {
     setSaving(true);
     try {
       const payload: Record<string, unknown> = {};
-      if (openH) payload.betOpenBeforeHours = Number(openH);
+      if (openH) payload.roundOpenBeforeHours = Number(openH);
       if (closeH) payload.betCloseBeforeHours = Number(closeH);
       if (deadline) payload.winnerPickDeadline = new Date(deadline).toISOString();
 
@@ -78,7 +78,7 @@ function SettingsPanel() {
           <div className="grid gap-4 sm:grid-cols-2">
             <label className="block">
               <span className="mb-1 block text-sm font-medium text-slate-600">
-                Bet opens (hours before kickoff)
+                Round opens (hours before round start)
               </span>
               <input
                 type="number"

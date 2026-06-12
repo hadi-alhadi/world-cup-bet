@@ -6,7 +6,7 @@ import { z } from "zod";
 import { handle, requireUser } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 import { getWindowSettings } from "@/lib/settings";
-import { windowState } from "@/lib/betting-window";
+import { windowState, getRoundOpens } from "@/lib/betting-window";
 import { DICE_EMAIL } from "@/lib/dice-bot";
 import type { CommunityPicks, DicePick, FixtureDTO, FixtureStatus, Outcome } from "@/lib/types";
 
@@ -66,7 +66,13 @@ export async function GET(req: NextRequest) {
     // Community picks reveal: only once the window is no longer OPEN and not still
     // waiting to open — i.e. CLOSED, LIVE, or FINISHED. Keeping it hidden while OPEN
     // (or NOT_OPEN_YET) means the distribution can't influence live bets.
-    const windows = new Map(fixtures.map((f) => [f.id, windowState(now, f, settings)]));
+    const roundOpens = await getRoundOpens(settings.roundOpenBeforeHours);
+    const windows = new Map(
+      fixtures.map((f) => [
+        f.id,
+        windowState(now, f, settings, f.roundKey ? roundOpens.get(f.roundKey) : null),
+      ]),
+    );
     const revealedIds = fixtures
       .filter((f) => {
         const r = windows.get(f.id)!.reason;
@@ -103,6 +109,7 @@ export async function GET(req: NextRequest) {
         awayTeam: { id: f.awayTeam.id, name: f.awayTeam.name, logoUrl: f.awayTeam.logoUrl },
         kickoffAt: f.kickoffAt.toISOString(),
         round: f.round,
+        roundKey: f.roundKey,
         status: f.status as FixtureStatus,
         homeScore: f.homeScore,
         awayScore: f.awayScore,

@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import type { FixtureDTO } from "@/lib/types";
 import { FixtureCard } from "@/components/FixtureCard";
+import { NextRoundBanner } from "@/components/NextRoundBanner";
 import { Spinner, EmptyState, ErrorState, useApi } from "@/components/state";
 import { fmtDayHeading, dayKey } from "@/components/format";
 
@@ -73,6 +74,8 @@ export default function GamesPage() {
           ))}
         </div>
       </div>
+
+      <NextRoundBanner />
 
       {missing.length > 0 && (
         <div

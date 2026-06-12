@@ -51,6 +51,15 @@ export function FixtureCard({ fixture }: { fixture: FixtureDTO }) {
 
   const fx = { ...fixture, myBet };
 
+  // Card label: group + round, e.g. "Group A · Round 2"; knockouts show just "Round of 16".
+  const shortRound = fixture.roundKey?.startsWith("Group Stage · ")
+    ? fixture.roundKey.slice("Group Stage · ".length)
+    : fixture.roundKey;
+  const roundLabel =
+    shortRound && fixture.round && shortRound !== fixture.round
+      ? `${fixture.round} · ${shortRound}`
+      : (fixture.round ?? shortRound ?? "Fixture");
+
   const diceVerdict = dice
     ? dice.outcome === "HOME"
       ? `Dice backs ${fixture.homeTeam.name} to win`
@@ -85,7 +94,7 @@ export function FixtureCard({ fixture }: { fixture: FixtureDTO }) {
         </div>
       )}
       <div className="mb-2 flex items-center justify-between text-xs text-slate-400">
-        <span>{fixture.round ?? "Fixture"}</span>
+        <span>{roundLabel}</span>
         <span className="flex items-center gap-2">
           {fmtKickoff(fixture.kickoffAt)}
           {dice && (

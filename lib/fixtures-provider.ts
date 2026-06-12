@@ -19,6 +19,7 @@ export interface ProviderFixture {
   awayTeamId: number;
   kickoffAt: Date;
   round: string;
+  roundKey?: string | null; // betting round bucket (stage/matchday); null if unknown
   status: FixtureStatus;
   // Result fields — only set by providers that report scores (football-data.org), and
   // only when the match is FINISHED. Drives auto-import (handoff §14.4 via applyFeedResult).
@@ -46,6 +47,7 @@ export class SeedProvider implements FixturesProvider {
       awayTeamId: f.awayTeamId,
       kickoffAt: f.kickoffAt,
       round: f.round,
+      roundKey: f.roundKey ?? null,
       status: f.status as FixtureStatus,
     }));
   }
@@ -338,6 +340,22 @@ function footballDataRound(m: FdMatch): string {
   return "Fixture";
 }
 
+// Betting round bucket (FIFA rounds): group-stage matchdays + knockout stages.
+const FD_STAGE_LABELS: Record<string, string> = {
+  LAST_32: "Round of 32",
+  LAST_16: "Round of 16",
+  QUARTER_FINALS: "Quarter-finals",
+  SEMI_FINALS: "Semi-finals",
+  THIRD_PLACE: "Third place",
+  FINAL: "Final",
+};
+function footballDataRoundKey(m: FdMatch): string | null {
+  if (m.stage === "GROUP_STAGE" && m.matchday) return `Group Stage · Round ${m.matchday}`;
+  if (m.stage && FD_STAGE_LABELS[m.stage]) return FD_STAGE_LABELS[m.stage];
+  if (m.stage) return m.stage.replace(/_/g, " ").toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
+  return null;
+}
+
 interface FdTeam {
   id?: number;
   name?: string;
@@ -352,6 +370,7 @@ interface FdMatch {
   utcDate?: string;
   status?: string;
   stage?: string;
+  matchday?: number;
   group?: string;
   homeTeam?: FdTeam;
   awayTeam?: FdTeam;
@@ -405,6 +424,7 @@ export class FootballDataProvider implements FixturesProvider {
         awayTeamId: away,
         kickoffAt,
         round: footballDataRound(m),
+        roundKey: footballDataRoundKey(m),
         status,
         // Carry the result only for finished matches; applyFeedResult enforces the 90' rule.
         homeScore: status === "FINISHED" ? ft?.home ?? null : null,
@@ -502,7 +522,14 @@ export async function syncFixtures(
   let manual = 0;
   for (const f of fixtures) {
     fixtureCount++;
-    if (resolved.has(f.id)) continue; // leave finalized results untouched
+    if (resolved.has(f.id)) {
+      // Don't re-score a finalized result, but keep its display label + round bucket fresh.
+      await prisma.fixture.update({
+        where: { id: f.id },
+        data: { round: f.round, roundKey: f.roundKey ?? null },
+      });
+      continue;
+    }
 
     await prisma.fixture.upsert({
       where: { id: f.id },
@@ -511,6 +538,7 @@ export async function syncFixtures(
         awayTeamId: f.awayTeamId,
         kickoffAt: f.kickoffAt,
         round: f.round,
+        roundKey: f.roundKey ?? null,
         status: f.status,
       },
       create: {
@@ -519,6 +547,7 @@ export async function syncFixtures(
         awayTeamId: f.awayTeamId,
         kickoffAt: f.kickoffAt,
         round: f.round,
+        roundKey: f.roundKey ?? null,
         status: f.status,
       },
     });

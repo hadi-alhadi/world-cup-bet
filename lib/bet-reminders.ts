@@ -2,7 +2,7 @@
 // list the members who haven't bet yet (names only; the Dice bot is excluded). Posts a
 // structured message to SLACK_WEBHOOK_URL. Called by an external cron (Bearer-secret).
 import { prisma } from "@/lib/prisma";
-import { canBet } from "@/lib/betting-window";
+import { canBet, getRoundOpens } from "@/lib/betting-window";
 import { getWindowSettings } from "@/lib/settings";
 import { DICE_EMAIL } from "@/lib/dice-bot";
 
@@ -31,7 +31,10 @@ export async function runBetReminders(): Promise<ReminderResult> {
     orderBy: { kickoffAt: "asc" },
     include: { homeTeam: true, awayTeam: true, bets: { select: { userId: true } } },
   });
-  const upcoming = fixtures.filter((f) => canBet(now, f, settings));
+  const roundOpens = await getRoundOpens(settings.roundOpenBeforeHours);
+  const upcoming = fixtures.filter((f) =>
+    canBet(now, f, settings, f.roundKey ? roundOpens.get(f.roundKey) : null),
+  );
 
   if (upcoming.length === 0) {
     return { matches: 0, posted: false, skipped: true };

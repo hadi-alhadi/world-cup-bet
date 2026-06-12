@@ -19,7 +19,8 @@ export interface SeedFixture {
   homeTeamId: number;
   awayTeamId: number;
   kickoffAt: Date;
-  round: string;
+  round: string; // display: group (e.g. "Group A") or stage
+  roundKey: string; // betting round bucket (whole round opens together)
   status: "SCHEDULED" | "LIVE" | "FINISHED" | "POSTPONED" | "CANCELLED";
   homeScore?: number;
   awayScore?: number;
@@ -47,14 +48,18 @@ export const TEAMS: SeedTeam[] = [
   { id: 107, name: "Netherlands", logoUrl: flag("nl") },
 ];
 
+// round = group (display); roundKey = betting round (whole round opens 48h before its
+// earliest kickoff). Round 1 games sit in the past/closing; Round 2 games are the OPEN
+// set (earliest ~2 days out => opens ~now); Quarter-finals are NOT_OPEN_YET (~10 days out).
 export const FIXTURES: SeedFixture[] = [
-  // --- Two FINISHED group games (seeded scores so the leaderboard is non-empty) ---
+  // --- Group Stage · Round 1 (two FINISHED, one LIVE, one CLOSED) ---
   {
     id: 1000,
     homeTeamId: 100, // Brazil
     awayTeamId: 101, // France
     kickoffAt: at(-5 * DAY),
-    round: "Group A - 1",
+    round: "Group A",
+    roundKey: "Group Stage · Round 1",
     status: "FINISHED",
     homeScore: 2,
     awayScore: 1,
@@ -64,36 +69,38 @@ export const FIXTURES: SeedFixture[] = [
     homeTeamId: 102, // Argentina
     awayTeamId: 103, // Germany
     kickoffAt: at(-4 * DAY),
-    round: "Group B - 1",
+    round: "Group B",
+    roundKey: "Group Stage · Round 1",
     status: "FINISHED",
     homeScore: 0,
     awayScore: 0,
   },
-  // --- One LIVE game (window math irrelevant; status blocks betting) ---
   {
     id: 1002,
     homeTeamId: 104, // Spain
     awayTeamId: 105, // England
     kickoffAt: at(-1 * HOUR),
-    round: "Group C - 1",
+    round: "Group C",
+    roundKey: "Group Stage · Round 1",
     status: "LIVE",
   },
-  // --- One CLOSED game: kickoff ~1h out, still SCHEDULED (closes 2h before) ---
   {
     id: 1003,
     homeTeamId: 106, // Portugal
     awayTeamId: 107, // Netherlands
     kickoffAt: at(1 * HOUR),
-    round: "Group D - 1",
+    round: "Group D",
+    roundKey: "Group Stage · Round 1",
     status: "SCHEDULED",
   },
-  // --- OPEN games: kickoff ~2 days out (opened 5 days ago, closes in ~2 days) ---
+  // --- Group Stage · Round 2 (the OPEN set — opens together ~2 days before kickoff) ---
   {
     id: 1004,
     homeTeamId: 100, // Brazil
     awayTeamId: 102, // Argentina
     kickoffAt: at(2 * DAY),
-    round: "Group A - 2",
+    round: "Group A",
+    roundKey: "Group Stage · Round 2",
     status: "SCHEDULED",
   },
   {
@@ -101,7 +108,8 @@ export const FIXTURES: SeedFixture[] = [
     homeTeamId: 101, // France
     awayTeamId: 104, // Spain
     kickoffAt: at(2 * DAY + 3 * HOUR),
-    round: "Group B - 2",
+    round: "Group B",
+    roundKey: "Group Stage · Round 2",
     status: "SCHEDULED",
   },
   {
@@ -109,16 +117,27 @@ export const FIXTURES: SeedFixture[] = [
     homeTeamId: 105, // England
     awayTeamId: 106, // Portugal
     kickoffAt: at(3 * DAY),
-    round: "Group C - 2",
+    round: "Group C",
+    roundKey: "Group Stage · Round 2",
     status: "SCHEDULED",
   },
-  // --- NOT_OPEN_YET games: kickoff ~10 days out (opens in ~3 days) ---
+  {
+    id: 1009,
+    homeTeamId: 102, // Argentina
+    awayTeamId: 106, // Portugal
+    kickoffAt: at(6 * DAY),
+    round: "Group D",
+    roundKey: "Group Stage · Round 2",
+    status: "POSTPONED",
+  },
+  // --- Quarter-finals (NOT_OPEN_YET — round opens ~2 days before its first game) ---
   {
     id: 1007,
     homeTeamId: 103, // Germany
     awayTeamId: 107, // Netherlands
     kickoffAt: at(10 * DAY),
-    round: "Quarter-final 1",
+    round: "Quarter-finals",
+    roundKey: "Quarter-finals",
     status: "SCHEDULED",
   },
   {
@@ -126,16 +145,8 @@ export const FIXTURES: SeedFixture[] = [
     homeTeamId: 100, // Brazil
     awayTeamId: 104, // Spain
     kickoffAt: at(11 * DAY),
-    round: "Quarter-final 2",
+    round: "Quarter-finals",
+    roundKey: "Quarter-finals",
     status: "SCHEDULED",
-  },
-  // --- One POSTPONED game (edge case for window/status handling) ---
-  {
-    id: 1009,
-    homeTeamId: 102, // Argentina
-    awayTeamId: 106, // Portugal
-    kickoffAt: at(6 * DAY),
-    round: "Group D - 2",
-    status: "POSTPONED",
   },
 ];
