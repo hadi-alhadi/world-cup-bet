@@ -5,7 +5,8 @@
 //   NOT_OPEN_YET  => kickoff ~10 days out (opens in ~3 days)
 //   CLOSED        => kickoff ~1h out, still SCHEDULED (window shut 1h ago)
 //   LIVE / FINISHED => status overrides the clock regardless of window math.
-// IMPORTANT: never call Date.now() here — the base is fixed at 2026-06-10T12:00:00Z.
+// The base is "now" at seed time, so these window states stay correct whenever the seed
+// runs (a fixed past date would drift out of its windows as real time advances).
 
 export interface SeedTeam {
   id: number;
@@ -24,8 +25,9 @@ export interface SeedFixture {
   awayScore?: number;
 }
 
-// Fixed reference instant — all relative offsets derive from this.
-export const SEED_BASE = new Date("2026-06-10T12:00:00Z");
+// Reference instant = seed time. All relative offsets derive from this, so window states
+// (OPEN/CLOSED/NOT_OPEN_YET) are correct relative to whenever the seed is run.
+export const SEED_BASE = new Date();
 
 const HOUR = 60 * 60 * 1000;
 const DAY = 24 * HOUR;

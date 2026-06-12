@@ -101,6 +101,10 @@ export function BetForm({ fixture, onSaved }: Props) {
       toast("Pick a result first (Win / Draw / Win)", "error");
       return;
     }
+    if (contradiction) {
+      toast("Your result and predicted score don't match — adjust one to save.", "error");
+      return;
+    }
     setSaving(true);
     try {
       const res = await fetch("/api/bets", {
@@ -218,17 +222,17 @@ export function BetForm({ fixture, onSaved }: Props) {
       {contradiction && canBet && (
         <p
           data-testid="contradiction-warning"
-          className="rounded-lg bg-amber-50 px-3 py-2 text-center text-xs text-amber-700"
+          className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-center text-xs font-medium text-red-700"
         >
-          ⚠️ Your score {predHome}–{predAway} doesn&apos;t match your selected result.
-          That&apos;s allowed — they score separately.
+          ⚠️ Your score {predHome}–{predAway} doesn&apos;t match your selected result. Adjust
+          your pick or the score to save.
         </p>
       )}
 
       <button
         type="button"
         data-testid="save-bet"
-        disabled={!canBet || saving}
+        disabled={!canBet || saving || contradiction}
         onClick={save}
         className="btn-brand w-full"
       >

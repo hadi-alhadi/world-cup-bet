@@ -162,4 +162,15 @@ test.describe("betting", () => {
     expect(res.status()).toBe(403);
     expect((await res.json()).error.code).toBe("BET_WINDOW_CLOSED");
   });
+
+  test("POST /api/bets is rejected when the result contradicts the predicted score", async ({
+    page,
+  }) => {
+    await login(page, freshUserEmail());
+    const res = await page.request.post("/api/bets", {
+      data: { fixtureId: OPEN_FIXTURE, outcome: "HOME", predHome: 0, predAway: 2 },
+    });
+    expect(res.status()).toBe(400);
+    expect((await res.json()).error.code).toBe("OUTCOME_SCORE_MISMATCH");
+  });
 });

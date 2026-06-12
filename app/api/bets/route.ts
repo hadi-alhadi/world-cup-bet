@@ -16,10 +16,24 @@ const betSchema = z.object({
   predAway: z.number().int().min(0),
 });
 
+// The outcome implied by a predicted scoreline.
+function impliedOutcome(home: number, away: number): "HOME" | "DRAW" | "AWAY" {
+  return home > away ? "HOME" : home < away ? "AWAY" : "DRAW";
+}
+
 export async function POST(req: Request) {
   return handle(async () => {
     const user = await requireUser();
     const body = betSchema.parse(await req.json());
+
+    // Result and predicted score must agree (server-authoritative — the UI also blocks it).
+    if (body.outcome !== impliedOutcome(body.predHome, body.predAway)) {
+      throw new HttpError(
+        "OUTCOME_SCORE_MISMATCH",
+        "Your selected result must match your predicted score",
+        400,
+      );
+    }
 
     const [fixture, settings] = await Promise.all([
       prisma.fixture.findUnique({ where: { id: body.fixtureId } }),
