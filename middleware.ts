@@ -23,7 +23,8 @@ export default auth((req) => {
     pathname.startsWith("/api/auth") ||
     pathname === "/login" ||
     pathname === "/dev-login" ||
-    pathname === "/api/admin/sync"
+    pathname === "/api/admin/sync" ||
+    pathname.startsWith("/api/cron/")
   ) {
     return NextResponse.next();
   }
