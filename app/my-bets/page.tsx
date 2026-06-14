@@ -108,7 +108,7 @@ function ResultBadge({ state, status }: { state: BetState; status: FixtureStatus
     return (
       <span
         className={
-          "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-extrabold uppercase tracking-wide " +
+          "inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1 text-[11px] font-extrabold uppercase tracking-wide " +
           s.badge +
           " animate-urgent-pulse motion-reduce:animate-none"
         }
@@ -124,7 +124,8 @@ function ResultBadge({ state, status }: { state: BetState; status: FixtureStatus
   return (
     <span
       className={
-        "rounded-full px-2.5 py-1 text-[11px] font-extrabold uppercase tracking-wide " + s.badge
+        "whitespace-nowrap rounded-full px-2.5 py-1 text-[11px] font-extrabold uppercase tracking-wide " +
+        s.badge
       }
     >
       {text}
@@ -217,12 +218,12 @@ function BetCard({ bet }: { bet: MyBetRow }) {
         </div>
       </div>
 
-      <div className="mt-3 flex items-center justify-between gap-2 border-t border-slate-200/70 pt-3">
+      <div className="mt-3 flex flex-col items-center gap-2 border-t border-slate-200/70 pt-3 sm:flex-row sm:items-center sm:justify-between">
         <span className="flex items-center gap-1.5 text-xs text-slate-500">
-          <span className="grid h-5 w-5 place-items-center rounded-md bg-ink text-[11px] font-bold text-white">
+          <span className="grid h-5 w-5 shrink-0 place-items-center rounded-md bg-ink text-[11px] font-bold text-white">
             {OUTCOME_LABEL[bet.outcome]}
           </span>
-          <span className="font-semibold tabular-nums text-slate-700">
+          <span className="whitespace-nowrap font-semibold tabular-nums text-slate-700">
             {bet.predHome}–{bet.predAway}
           </span>
         </span>
