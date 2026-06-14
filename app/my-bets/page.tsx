@@ -31,40 +31,204 @@ const OUTCOME_LABEL: Record<Outcome, string> = {
   AWAY: "2",
 };
 
-function StatusPill({ status }: { status: FixtureStatus }) {
-  const map: Record<FixtureStatus, string> = {
-    SCHEDULED: "bg-blue-50 text-blue-600",
-    LIVE: "bg-red-50 text-red-600",
-    FINISHED: "bg-slate-100 text-slate-500",
-    POSTPONED: "bg-amber-50 text-amber-600",
-    CANCELLED: "bg-slate-100 text-slate-400",
-  };
+// The single result-state a card is rendered in, derived from status + points.
+type BetState = "exact" | "win" | "loss" | "pending" | "live" | "locked" | "muted";
+
+interface StateStyle {
+  /** Left accent stripe color. */
+  stripe: string;
+  /** Soft background wash + ring on the whole card. */
+  card: string;
+  /** Result badge classes. */
+  badge: string;
+  /** Result badge text. */
+  label: string;
+}
+
+const STATE_STYLE: Record<BetState, StateStyle> = {
+  exact: {
+    stripe: "bg-amber-400",
+    card: "bg-amber-50/60 ring-1 ring-amber-300 shadow-[0_0_0_1px_rgba(251,191,36,0.35),0_8px_24px_-8px_rgba(251,191,36,0.45)]",
+    badge: "bg-amber-100 text-amber-700",
+    label: "🎯 EXACT · +3",
+  },
+  win: {
+    stripe: "bg-brand",
+    card: "bg-brand/5 ring-1 ring-brand/30",
+    badge: "bg-brand/10 text-brand",
+    label: "✓ WIN · +1",
+  },
+  loss: {
+    stripe: "bg-red-300",
+    card: "bg-white opacity-90",
+    badge: "bg-slate-100 text-slate-400",
+    label: "MISS · 0",
+  },
+  pending: {
+    stripe: "bg-slate-300",
+    card: "bg-white",
+    badge: "bg-slate-100 text-slate-500",
+    label: "PENDING",
+  },
+  live: {
+    stripe: "bg-red-500",
+    card: "bg-red-50/70 ring-1 ring-red-300",
+    badge: "bg-red-600 text-white",
+    label: "LIVE",
+  },
+  locked: {
+    stripe: "bg-brand-light",
+    card: "bg-white",
+    badge: "bg-blue-50 text-blue-600",
+    label: "🔒 LOCKED IN",
+  },
+  muted: {
+    stripe: "bg-slate-200",
+    card: "bg-white opacity-80",
+    badge: "bg-slate-100 text-slate-400",
+    label: "",
+  },
+};
+
+function betState(status: FixtureStatus, points: number | null): BetState {
+  if (status === "LIVE") return "live";
+  if (status === "SCHEDULED") return "locked";
+  if (status === "POSTPONED" || status === "CANCELLED") return "muted";
+  // FINISHED:
+  if (points === null) return "pending";
+  if (points === 3) return "exact";
+  if (points > 0) return "win";
+  return "loss";
+}
+
+function ResultBadge({ state, status }: { state: BetState; status: FixtureStatus }) {
+  const s = STATE_STYLE[state];
+  const text = state === "muted" && !s.label ? status : s.label;
+  if (state === "live") {
+    return (
+      <span
+        className={
+          "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-extrabold uppercase tracking-wide " +
+          s.badge +
+          " animate-urgent-pulse motion-reduce:animate-none"
+        }
+      >
+        <span className="relative flex h-2 w-2" aria-hidden>
+          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-white opacity-75 motion-reduce:hidden" />
+          <span className="relative inline-flex h-2 w-2 rounded-full bg-white" />
+        </span>
+        {text}
+      </span>
+    );
+  }
   return (
-    <span className={"rounded-full px-2 py-0.5 text-[11px] font-semibold " + map[status]}>
-      {status}
+    <span
+      className={
+        "rounded-full px-2.5 py-1 text-[11px] font-extrabold uppercase tracking-wide " + s.badge
+      }
+    >
+      {text}
     </span>
   );
 }
 
-function PointsCell({ points, status }: { points: number | null; status: FixtureStatus }) {
-  if (status !== "FINISHED")
-    return <span className="text-xs text-slate-400">—</span>;
-  if (points === null) return <span className="text-xs text-slate-400">Pending</span>;
-  const exact = points === 3;
+// Bigger, rounded + bordered flag for the mobile match layout (mirrors FixtureCard's
+// flipped-face flag): object-cover so it hugs the flag instead of a letterboxed square.
+function MobileFlag({ team }: { team: { name: string; logoUrl: string | null } }) {
+  if (team.logoUrl) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={team.logoUrl}
+        alt=""
+        className="h-11 w-16 rounded-lg border border-slate-200 object-cover shadow-sm"
+      />
+    );
+  }
   return (
-    <span
+    <span className="grid h-11 w-16 place-items-center rounded-lg border border-slate-200 bg-slate-100 text-sm font-bold text-slate-500">
+      {team.name.slice(0, 2).toUpperCase()}
+    </span>
+  );
+}
+
+function BetCard({ bet }: { bet: MyBetRow }) {
+  const { fixture: fx } = bet;
+  const state = betState(fx.status, bet.points);
+  const style = STATE_STYLE[state];
+  const showScore =
+    fx.status === "FINISHED" && fx.homeScore !== null && fx.awayScore !== null;
+
+  return (
+    <li
+      data-testid={`mybet-${bet.fixtureId}`}
       className={
-        "rounded-full px-2.5 py-1 text-xs font-bold " +
-        (points > 0
-          ? exact
-            ? "bg-amber-100 text-amber-700"
-            : "bg-brand/10 text-brand"
-          : "bg-slate-100 text-slate-400")
+        "card relative overflow-hidden p-4 pl-5 transition duration-200 hover:-translate-y-0.5 hover:shadow-md " +
+        style.card
       }
     >
-      {exact ? "🎯 " : ""}
-      {points} pt{points === 1 ? "" : "s"}
-    </span>
+      {/* Result-state accent stripe down the left edge. */}
+      <span className={"absolute inset-y-0 left-0 w-1.5 " + style.stripe} aria-hidden />
+
+      <div className="mb-2 flex items-center justify-between gap-2 text-[11px] text-slate-400">
+        <span className="truncate">{fx.round ?? "Fixture"}</span>
+        <span className="shrink-0">{fmtShort(fx.kickoffAt)}</span>
+      </div>
+
+      {/* Mobile: big flags side-by-side with the score centered underneath. */}
+      <div className="sm:hidden">
+        <div className="flex items-center justify-center gap-8">
+          <MobileFlag team={fx.homeTeam} />
+          <MobileFlag team={fx.awayTeam} />
+        </div>
+        <div className="mt-1.5 text-center text-lg font-extrabold tabular-nums">
+          {showScore ? (
+            <span>
+              {fx.homeScore}
+              <span className="px-1 text-slate-300">–</span>
+              {fx.awayScore}
+            </span>
+          ) : (
+            <span className="text-slate-300">vs</span>
+          )}
+        </div>
+      </div>
+
+      {/* sm+: flag + name inline, score in the middle. */}
+      <div className="hidden items-center justify-between gap-2 sm:flex">
+        <div className="flex min-w-0 flex-1 items-center gap-2">
+          <TeamLogo team={fx.homeTeam} size={22} />
+          <span className="truncate text-sm font-semibold">{fx.homeTeam.name}</span>
+        </div>
+        <div className="shrink-0 text-center text-sm font-extrabold tabular-nums">
+          {showScore ? (
+            <span>
+              {fx.homeScore}
+              <span className="text-slate-300">–</span>
+              {fx.awayScore}
+            </span>
+          ) : (
+            <span className="text-slate-300">vs</span>
+          )}
+        </div>
+        <div className="flex min-w-0 flex-1 items-center justify-end gap-2">
+          <span className="truncate text-right text-sm font-semibold">{fx.awayTeam.name}</span>
+          <TeamLogo team={fx.awayTeam} size={22} />
+        </div>
+      </div>
+
+      <div className="mt-3 flex items-center justify-between gap-2 border-t border-slate-200/70 pt-3">
+        <span className="flex items-center gap-1.5 text-xs text-slate-500">
+          <span className="grid h-5 w-5 place-items-center rounded-md bg-ink text-[11px] font-bold text-white">
+            {OUTCOME_LABEL[bet.outcome]}
+          </span>
+          <span className="font-semibold tabular-nums text-slate-700">
+            {bet.predHome}–{bet.predAway}
+          </span>
+        </span>
+        <ResultBadge state={state} status={fx.status} />
+      </div>
+    </li>
   );
 }
 
@@ -85,48 +249,9 @@ export default function MyBetsPage() {
       )}
 
       {!loading && !error && (data?.length ?? 0) > 0 && (
-        <ul className="space-y-3">
+        <ul className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3">
           {data!.map((b) => (
-            <li key={b.id} className="card p-4" data-testid={`mybet-${b.fixtureId}`}>
-              <div className="mb-1 flex items-center justify-between text-xs text-slate-400">
-                <span>{b.fixture.round ?? "Fixture"}</span>
-                <span>{fmtShort(b.fixture.kickoffAt)}</span>
-              </div>
-              <div className="flex items-center justify-between gap-3">
-                <div className="flex flex-1 items-center gap-2">
-                  <TeamLogo team={b.fixture.homeTeam} size={24} />
-                  <span className="truncate text-sm font-semibold">
-                    {b.fixture.homeTeam.name}
-                  </span>
-                </div>
-                <div className="text-center text-sm font-bold tabular-nums">
-                  {b.fixture.status === "FINISHED" &&
-                  b.fixture.homeScore !== null &&
-                  b.fixture.awayScore !== null
-                    ? `${b.fixture.homeScore}–${b.fixture.awayScore}`
-                    : "vs"}
-                </div>
-                <div className="flex flex-1 items-center justify-end gap-2">
-                  <span className="truncate text-right text-sm font-semibold">
-                    {b.fixture.awayTeam.name}
-                  </span>
-                  <TeamLogo team={b.fixture.awayTeam} size={24} />
-                </div>
-              </div>
-
-              <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3 text-sm">
-                <span className="text-slate-500">
-                  My pick:{" "}
-                  <span className="font-semibold text-slate-700">
-                    {OUTCOME_LABEL[b.outcome]} · {b.predHome}–{b.predAway}
-                  </span>
-                </span>
-                <div className="flex items-center gap-2">
-                  <StatusPill status={b.fixture.status} />
-                  <PointsCell points={b.points} status={b.fixture.status} />
-                </div>
-              </div>
-            </li>
+            <BetCard key={b.id} bet={b} />
           ))}
         </ul>
       )}
