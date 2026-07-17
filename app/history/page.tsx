@@ -189,7 +189,7 @@ export default function HistoryPage() {
       {loading && <Spinner label="Loading history…" />}
       {error && !loading && <ErrorState message={error} onRetry={reload} />}
       {!loading && !error && (data?.length ?? 0) === 0 && (
-        <EmptyState title="No games yet" hint="Games will appear here once fixtures are imported." />
+        <EmptyState title="No games yet" hint="Games appear here once they kick off." />
       )}
 
       {!loading && !error && (data?.length ?? 0) > 0 && (

@@ -18,6 +18,8 @@ export async function GET() {
     const [settings, fixtures] = await Promise.all([
       getWindowSettings(),
       prisma.fixture.findMany({
+        // History = games that have started; upcoming fixtures stay hidden.
+        where: { kickoffAt: { lte: new Date() } },
         orderBy: { kickoffAt: "asc" },
         include: {
           homeTeam: true,
