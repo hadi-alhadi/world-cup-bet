@@ -19,6 +19,7 @@ const LINKS = [
   { href: "/my-bets", label: "My Bets" },
   { href: "/leaderboard", label: "Leaderboard" },
   { href: "/badges", label: "Badges" },
+  { href: "/history", label: "History" },
 ];
 
 export function Nav({ user }: { user: NavUser | null }) {
